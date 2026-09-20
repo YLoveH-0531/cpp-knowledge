@@ -23,7 +23,6 @@
 | Name | Description |
 |---|---|
 | `regex_iterator` | Iterates through all regex matches within a character sequence. |
-| `regex_token_iterator` | Iterates through the specified sub-expressions within all regex matches in a given string, or through unmatched substrings. |
 
 ### d. Exception
 
@@ -47,4 +46,95 @@
 
 ## 2. Key Points
 
-(待补充)
+### basic_regex
+a.def
+template<
+    class CharT,
+    class Traits = std::regex_traits<CharT>
+> class basic_regex;
+
+b.type
+type	Definition
+std::regex	std::basic_regex<char>
+std::wregex	std::basic_regex<wchar_t>
+
+c.method
+re(r), re(r,f),re=r,assign(r,f),marks_count(),flags().
+// r refer to a target sequence, could be string, a pait of iterator points to character seqence, a pointer point to a null-terminated array,a poninter and a count, a brace listed characters 
+// f refer to syntax_option_type
+
+### match_results
+a.def
+template<
+    class BidirIt,
+    class Alloc = std::allocator<std::sub_match<BidirIt>>
+> class match_results;
+std::match_results meets the requirements of a AllocatorAwareContainer and of a SequenceContainer.
+
+b.type
+std::cmatch	std::match_results<const char*>
+std::wcmatch	std::match_results<const wchar_t*>
+std::smatch	std::match_results<std::string::const_iterator>
+std::wsmatch	std::match_results<std::wstring::const_iterator>
+
+c.some notes.
+1).holds a collection of character sequences that represent the result of a regular expression match.
+2)It can only be default created, obtained from std::regex_iterator, or modified by std::regex_search or std::regex_match.
+
+d.method
+ready(), empty(), size(), 
+length/position/str/operator[]/prefix/suffix
+begin/cbegin, end/cend
+format
+
+### sub_match
+a.def
+template< class BidirIt >
+class sub_match;
+key: std::sub_match inherits from std::pair<BidirIt, BidirIt>
+
+b.type
+Type	Definition
+std::csub_match	std::sub_match<const char*>
+std::wcsub_match	std::sub_match<const wchar_t*>
+std::ssub_match	std::sub_match<std::string::const_iterator>
+std::wssub_match	std::sub_match<std::wstring::const_iterator>
+
+c.mothod
+matched, first, second, length, str.
+
+### regex_match/regex_search
+a.parameters
+(seq, result, re, mft)
+(seq, re, mft)
+// seq, Target sequence; result, match_reseults; re, pattern; mft, match_flag_type
+
+### regex_replace
+// 
+
+### regex_iterator
+a.def
+template<
+    class BidirIt,
+    class CharT = typename std::iterator_traits<BidirIt>::value_type,
+    class Traits = std::regex_traits<CharT>
+> class regex_iterator;
+
+b.type
+Type	Definition
+std::cregex_iterator	std::regex_iterator<const char*>
+std::wcregex_iterator	std::regex_iterator<const wchar_t*>
+std::sregex_iterator	std::regex_iterator<std::string::const_iterator>
+std::wsregex_iterator	std::regex_iterator<std::wstring::const_iterator>
+
+c.some points
+1).std::regex_iterator is a read-only iterator that accesses the individual matches of a regular expression within the underlying character sequence. It meets the requirements of a LegacyForwardIterator, except that for dereferenceable values a and b with a == b, *a and *b will not be bound to the same object.
+2)On construction, and on every increment, it calls std::regex_search and remembers the result (that is, saves a copy of the std::match_results<BidirIt> value). The first object may be read when the iterator is constructed or when the first dereferencing is done. Otherwise, dereferencing only returns a copy of the most recently obtained regex match.
+3).A typical implementation of std::regex_iterator holds the begin and the end iterators for the underlying sequence (two instances of BidirIt), a pointer to the regular expression (const regex_type*), the match flags (std::regex_constants::match_flag_type), and the current match (std::match_results<BidirIt>).
+
+d.method
+operator== / operator!=
+ 
+operator* / operator->
+
+operator++ / operator++(int)
