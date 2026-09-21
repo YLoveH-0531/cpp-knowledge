@@ -1,6 +1,47 @@
 # Regular Expressions
 
-## 1. Component Map
+## 1. Overview
+
+**One match:**
+
+```text
+[Rule]                      [Target Sequence]
+basic_regex                 string / char* / iterator range
+     │                              │
+     └──────────────┬───────────────┘
+                     ↓
+           regex_match / regex_search
+                     ↓
+            match_results (e.g. smatch)
+                     │
+         ┌───────────┼───────────┐
+         ↓           ↓           ↓
+       m[0]        m[1]        m[2] ...
+                 sub_match
+                     │
+              [first, second) + matched
+                     ↓
+        range in the original character sequence
+```
+
+**Multiple matches:**
+
+```text
+target sequence + regex
+          ↓
+    regex_iterator  ──++──▶ match #1 ──++──▶ match #2 ──++──▶ ...
+          │
+          ↓ (each element)
+     match_results ──▶ sub_match × N
+```
+
+**Three levels to remember:**
+
+- `regex_iterator` → traverses individual matches
+- `match_results` → describes all results of one match
+- `sub_match` → describes one matched sub-expression as `[first, second)` + `matched`
+
+## 2. Component Map
 
 ### a. Main Classes
 
@@ -23,6 +64,7 @@
 | Name | Description |
 |---|---|
 | `regex_iterator` | Iterates through all regex matches within a character sequence. |
+| `regex_token_iterator` | Iterates through the specified sub-expressions within all regex matches in a given string, or through unmatched substrings. |
 
 ### d. Exception
 
@@ -44,97 +86,366 @@
 | `match_flag_type` | Options specific to matching. |
 | `error_type` | Describes different types of matching errors. |
 
-## 2. Key Points
+## 3. Key Points
 
-### basic_regex
-a.def
+### a. basic_regex
+
+**Definition:**
+
+```cpp
 template<
     class CharT,
     class Traits = std::regex_traits<CharT>
 > class basic_regex;
+```
 
-b.type
-type	Definition
-std::regex	std::basic_regex<char>
-std::wregex	std::basic_regex<wchar_t>
+**Type Aliases:**
 
-c.method
-re(r), re(r,f),re=r,assign(r,f),marks_count(),flags().
-// r refer to a target sequence, could be string, a pait of iterator points to character seqence, a pointer point to a null-terminated array,a poninter and a count, a brace listed characters 
-// f refer to syntax_option_type
+| Type | Definition |
+|---|---|
+| `std::regex` | `std::basic_regex<char>` |
+| `std::wregex` | `std::basic_regex<wchar_t>` |
 
-### match_results
-a.def
+**Methods:**
+
+`re(r)`, `re(r, f)`, `re = r`, `assign(r, f)`, `marks_count()`, `flags()`.
+- `r` refers to a target sequence — a string, a pair of iterators pointing to a character sequence, a pointer to a null-terminated array, a pointer with a count, or a braced list of characters.
+- `f` refers to `syntax_option_type` — see h. syntax_option_type below for the full grammar/variation list.
+
+### b. regex_match / regex_search
+
+**Parameters:**
+
+```cpp
+(seq, result, re, mft)
+(seq, re, mft)
+```
+
+- `seq` — target sequence
+- `result` — `match_results`
+- `re` — pattern
+- `mft` — `match_flag_type`
+
+**Difference:**
+
+- `regex_match` — the regex must match the **entire** sequence.
+- `regex_search` — finds a match in **any part** of the sequence; the unmatched text before/after that match can be read via `match_results::prefix()`/`suffix()` (see c. match_results).
+
+### c. match_results
+
+**Definition:**
+
+```cpp
 template<
     class BidirIt,
     class Alloc = std::allocator<std::sub_match<BidirIt>>
 > class match_results;
-std::match_results meets the requirements of a AllocatorAwareContainer and of a SequenceContainer.
+```
 
-b.type
-std::cmatch	std::match_results<const char*>
-std::wcmatch	std::match_results<const wchar_t*>
-std::smatch	std::match_results<std::string::const_iterator>
-std::wsmatch	std::match_results<std::wstring::const_iterator>
+`std::match_results` meets the requirements of `AllocatorAwareContainer` and `SequenceContainer`.
 
-c.some notes.
-1).holds a collection of character sequences that represent the result of a regular expression match.
-2)It can only be default created, obtained from std::regex_iterator, or modified by std::regex_search or std::regex_match.
+**Type Aliases:**
 
-d.method
-ready(), empty(), size(), 
-length/position/str/operator[]/prefix/suffix
-begin/cbegin, end/cend
-format
+| Type | Definition |
+|---|---|
+| `std::cmatch` | `std::match_results<const char*>` |
+| `std::wcmatch` | `std::match_results<const wchar_t*>` |
+| `std::smatch` | `std::match_results<std::string::const_iterator>` |
+| `std::wsmatch` | `std::match_results<std::wstring::const_iterator>` |
 
-### sub_match
-a.def
+**Concept:**
+
+1. Holds a collection of character sequences that represent the result of a regular expression match. It can only be default-constructed, obtained from `std::regex_iterator`, or modified by `std::regex_search`/`std::regex_match`.
+2. It is not a general-purpose mutable container — think of it loosely as `vector<sub_match<BidirIt>>` (the standard does not mandate this exact layout). Elements are exposed for read-only access rather than freely inserted/erased/modified.
+3. One match commonly holds several sub-matches: `m[0]` is the entire match, `m[1], m[2], ...` are capture groups.
+
+**Methods:**
+
+`ready()`, `empty()`, `size()`, `length()`/`position()`/`str()`/`operator[]`/`prefix()`/`suffix()`, `begin()`/`cbegin()`, `end()`/`cend()`, `format()`.
+
+**Lifetime:**
+
+`sub_match` refers to the original character sequence through its iterators — the original sequence (and those iterators) must remain valid while the match results are being used.
+
+### d. sub_match
+
+**Definition:**
+
+```cpp
 template< class BidirIt >
 class sub_match;
-key: std::sub_match inherits from std::pair<BidirIt, BidirIt>
+```
 
-b.type
-Type	Definition
-std::csub_match	std::sub_match<const char*>
-std::wcsub_match	std::sub_match<const wchar_t*>
-std::ssub_match	std::sub_match<std::string::const_iterator>
-std::wssub_match	std::sub_match<std::wstring::const_iterator>
+`std::sub_match` inherits from `std::pair<BidirIt, BidirIt>`.
 
-c.mothod
-matched, first, second, length, str.
+**Type Aliases:**
 
-### regex_match/regex_search
-a.parameters
-(seq, result, re, mft)
-(seq, re, mft)
-// seq, Target sequence; result, match_reseults; re, pattern; mft, match_flag_type
+| Type | Definition |
+|---|---|
+| `std::csub_match` | `std::sub_match<const char*>` |
+| `std::wcsub_match` | `std::sub_match<const wchar_t*>` |
+| `std::ssub_match` | `std::sub_match<std::string::const_iterator>` |
+| `std::wssub_match` | `std::sub_match<std::wstring::const_iterator>` |
 
-### regex_replace
-// 
+**Methods:**
 
-### regex_iterator
-a.def
+`matched`, `first`, `second`, `length()`, `str()`.
+
+**Concept:**
+
+`sub_match` is **not** a stored string — its core representation is `[first, second)` + `matched`, i.e. a description of a range in the original character sequence. `str()` constructs a string from that range only when needed.
+
+**Comparison:**
+
+Comparison (`==`, `<`, etc.) is based on the **character sequence represented by the match**, not object identity — `a == b` means "the two represent equal matching text", not "`a` and `b` are the same object".
+
+### e. regex_replace
+
+**Parameters:**
+
+```cpp
+(dest, seq, r, fmt, mft)
+(seq, r, fmt, mft)
+```
+
+- `dest` — output iterator
+- `seq` — target sequence
+- `r` — pattern
+- `fmt` — replacement string
+- `mft` — `match_flag_type`
+
+**Format Specifiers (in `fmt`):**
+
+| Expression | Meaning |
+|---|---|
+| `$&` | entire match |
+| `$1`, `$2`, ... | capture group N |
+| `$$` | literal `$` |
+
+**Example:**
+
+```cpp
+std::regex re(R"((\d{4})-(\d{2})-(\d{2}))");
+std::regex_replace(std::string("2026-09-18"), re, "$3/$2/$1");
+// → "18/09/2026"
+```
+
+### f. regex_iterator
+
+**Definition:**
+
+```cpp
 template<
     class BidirIt,
     class CharT = typename std::iterator_traits<BidirIt>::value_type,
     class Traits = std::regex_traits<CharT>
 > class regex_iterator;
+```
 
-b.type
-Type	Definition
-std::cregex_iterator	std::regex_iterator<const char*>
-std::wcregex_iterator	std::regex_iterator<const wchar_t*>
-std::sregex_iterator	std::regex_iterator<std::string::const_iterator>
-std::wsregex_iterator	std::regex_iterator<std::wstring::const_iterator>
+**Type Aliases:**
 
-c.some points
-1).std::regex_iterator is a read-only iterator that accesses the individual matches of a regular expression within the underlying character sequence. It meets the requirements of a LegacyForwardIterator, except that for dereferenceable values a and b with a == b, *a and *b will not be bound to the same object.
-2)On construction, and on every increment, it calls std::regex_search and remembers the result (that is, saves a copy of the std::match_results<BidirIt> value). The first object may be read when the iterator is constructed or when the first dereferencing is done. Otherwise, dereferencing only returns a copy of the most recently obtained regex match.
-3).A typical implementation of std::regex_iterator holds the begin and the end iterators for the underlying sequence (two instances of BidirIt), a pointer to the regular expression (const regex_type*), the match flags (std::regex_constants::match_flag_type), and the current match (std::match_results<BidirIt>).
+| Type | Definition |
+|---|---|
+| `std::cregex_iterator` | `std::regex_iterator<const char*>` |
+| `std::wcregex_iterator` | `std::regex_iterator<const wchar_t*>` |
+| `std::sregex_iterator` | `std::regex_iterator<std::string::const_iterator>` |
+| `std::wsregex_iterator` | `std::regex_iterator<std::wstring::const_iterator>` |
 
-d.method
-operator== / operator!=
- 
-operator* / operator->
+**What It Iterates Over:**
 
-operator++ / operator++(int)
+Individual **matches** (`match_results`) — not characters, and not `sub_match` directly. `*it` gives read-only access to the current `match_results<BidirIt>`.
+
+**Notes:**
+
+1. Meets the requirements of `LegacyForwardIterator`, with one exception: for dereferenceable `a`, `b` with `a == b`, `*a` and `*b` are **not** guaranteed to be the same object — two iterators can hold separate `match_results` instances describing the same current match. Equality itself compares iterator state (begin/end/pregex/flags/`match[0]`), and `match[0] == rhs.match[0]` is a value comparison of `sub_match` (per d. above), not identity.
+2. On construction, and on every increment, it calls `std::regex_search` and caches the result (a copy of `std::match_results<BidirIt>`). The first match may be produced at construction or at first dereference; afterward, dereferencing just returns the cached match.
+3. A typical implementation stores the begin/end iterators for the underlying sequence, a pointer to the regular expression (`const regex_type*`), the match flags (`std::regex_constants::match_flag_type`), and the current match — this is a common implementation shape, not a mandated layout.
+
+**Methods:**
+
+`operator==` / `operator!=`, `operator*` / `operator->`, `operator++` / `operator++(int)`
+
+**Typical Traversal:**
+
+```cpp
+for (std::sregex_iterator it(s.begin(), s.end(), re);
+     it != std::sregex_iterator{};
+     ++it)
+{
+    std::cout << (*it)[0].str() << '\n';
+}
+```
+
+### g. regex_traits
+
+**Definition:**
+
+```cpp
+template<class CharT>
+struct regex_traits;
+```
+
+Provides character-related, locale-sensitive rules used by `basic_regex<CharT, Traits>` — character classification, case handling, locale-sensitive comparison/collation. Same relationship pattern as `iterator_traits`: `CharT → regex_traits<CharT> →` "how should characters of this type be interpreted/compared".
+
+**Note:** ordinary use of `std::regex` rarely touches this type directly — it only becomes relevant when customizing character/locale semantics.
+
+### h. syntax_option_type
+
+**Grammar (choose one):**
+
+| Value | Meaning |
+|---|---|
+| `ECMAScript` | Modified ECMAScript grammar (used if no grammar option is specified). |
+| `basic` | POSIX basic grammar. |
+| `extended` | POSIX extended grammar. |
+| `awk` | `awk` grammar. |
+| `grep` | `grep` grammar. |
+| `egrep` | `egrep` grammar. |
+
+**Variations (combine via `|`):**
+
+| Value | Meaning |
+|---|---|
+| `icase` | Ignore case. |
+| `nosubs` | Groups still group syntactically, but capture results are not stored (`mark_count() == 0`). This is a `basic_regex`-wide switch — different from a non-capturing group `(?:...)` at the pattern-syntax level. |
+| `optimize` | Optimization hint: construction may be slower, matching may be faster. |
+| `collate` | Character ranges such as `[a-b]` become locale-sensitive. |
+| `multiline` | For ECMAScript, `^`/`$` can also match at line boundaries. |
+
+### i. match_flag_type
+
+**Matching options:**
+
+| Value | Meaning |
+|---|---|
+| `match_default` | Empty bitmask (no options set). |
+| `match_not_bol` | First char in `[first, last)` is not treated as start-of-line (`^` won't match there). |
+| `match_not_eol` | Last char is not treated as end-of-line (`$` won't match there). |
+| `match_not_bow` | `\b` won't match at `first`. |
+| `match_not_eow` | `\b` won't match at `last`. |
+| `match_any` | If more than one match is possible, any is an acceptable result. |
+| `match_not_null` | Don't match empty sequences. |
+| `match_continuous` | Only match a sub-sequence that begins exactly at `first`. |
+| `match_prev_avail` | `--first` is a valid iterator position; when set, `match_not_bol`/`match_not_bow` are ignored. |
+
+**Formatting options (for `regex_replace`):**
+
+| Value | Meaning |
+|---|---|
+| `format_default` | Use ECMAScript rules to construct the replacement string. |
+| `format_sed` | Use POSIX `sed` rules. |
+| `format_no_copy` | Don't copy unmatched text to the output. |
+| `format_first_only` | Only replace the first match. |
+
+`syntax_option_type` controls how the regex itself is interpreted; `match_flag_type` controls how one matching/searching/replacing operation behaves — keep these two as separate concepts.
+
+### j. regex_error
+
+**Definition:**
+
+```cpp
+class regex_error : public std::runtime_error;
+```
+
+Reports errors generated by the regex library.
+
+**Key Members:**
+
+- `code()` — standardized `error_type` category; drive program logic on this.
+- `what()` — human-readable diagnostic text; exact wording is implementation-defined, for humans not logic.
+
+## 4. Design Notes
+
+### a. Why match_results Is Parameterized by BidirIt, Not T
+
+```text
+vector<T>               → value_type = T                     (T is an independent choice)
+map<Key, T>              → value_type = pair<const Key, T>    (Key, T are independent choices)
+match_results<BidirIt>   → value_type = sub_match<BidirIt>     (sub_match is determined BY BidirIt)
+```
+
+`sub_match<BidirIt>` is uniquely determined by `BidirIt`, so it is not exposed as an independent template parameter. `BidirIt` alone determines the type of `first`/`second`, how the match refers back to the original sequence, and therefore `sub_match<BidirIt>`.
+
+> **Principle:** expose genuinely independent semantic parameters; let types that are uniquely determined by them remain derived/associated types.
+
+### b. `==` Means Value Equality, Not Identity
+
+Applies to `sub_match` (3.d) and `regex_iterator` (3.f): `a == b` compares the represented character sequence / matching state, not `&a == &b`.
+
+## 5. Common Pitfalls
+
+### a. Repeated Capture Groups: `(a)*` vs `(a*)`
+
+For pattern `a(a)*b` against `"aaab"`, the same capture group `(a)` is re-captured on every repetition, so the final stored capture is only the **last** iteration:
+
+```cpp
+std::regex re("a(a)*b");
+std::smatch sm;
+std::regex_match("aaab", sm, re);
+
+sm.position(1) == 2;
+sm[1].str() == "a";
+```
+
+`(a*)` behaves differently — it captures everything in one shot:
+
+```text
+a(a*)b   →   group 1 = "aa", position = 1
+```
+
+### b. A Capture Group That Didn't Participate
+
+Don't judge "did this group match anything" purely by whether `str()` is empty — check `sm[n].matched`. E.g. for `(a)?` against input without an `a`, `sm[1].matched == false`; `position(1)`/`str()` on a non-participating group should not be trusted as "it matched an empty string".
+
+## 6. Worked Example
+
+```cpp
+#include <iostream>
+#include <regex>
+#include <string>
+
+int main()
+{
+    std::string text = "Alice: 123, Bob: 456";
+
+    // 1. Rule
+    std::regex re(R"((\w+):\s*(\d+))");
+
+    // 2. One search -> match_results
+    std::smatch m;
+
+    if (std::regex_search(text, m, re)) {
+        std::cout << m[0].str() << '\n';    // Alice: 123
+        std::cout << m[1].str() << '\n';    // Alice
+        std::cout << m[2].str() << '\n';    // 123
+        std::cout << m.position(1) << '\n'; // 0
+    }
+
+    // 3. regex_iterator -> iterate over matches
+    for (std::sregex_iterator it(text.begin(), text.end(), re);
+         it != std::sregex_iterator{};
+         ++it)
+    {
+        std::cout << (*it)[1].str() << " = " << (*it)[2].str() << '\n';
+    }
+
+    // 4. regex_replace -> use capture groups in fmt
+    std::string result = std::regex_replace(text, re, "$1($2)");
+    std::cout << result << '\n';
+}
+```
+
+## 7. Mental Model
+
+```text
+Core type relationship:
+    BidirIt → sub_match<BidirIt> → match_results<BidirIt>
+
+Core operational relationship:
+    Rule + Target → Match/Search → Match Results → Sub-matches → Ranges in the original sequence
+
+regex_iterator:
+    match 1 → match_results → sub_match × N
+    match 2 → match_results → sub_match × N
+    ...
+```
