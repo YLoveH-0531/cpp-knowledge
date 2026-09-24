@@ -12,3 +12,11 @@ STL 六大组件,按侯捷经典划分:
 ## 组件间关系
 
 container 通过 allocator 取得数据储存空间,algorithm 通过 iterator 存取 container 内容,function object 协助 algorithm 完成不同的策略变化,adapter 可以修饰或套接 function object。
+
+Sequence Container = 把元素组织成一个 sequence 的容器。
+
+这里的“sequence”不是专门说“排序后的序列”，而是说：
+
+有确定线性先后关系的元素集合
+
+Associative Container = 用 key 把元素组织、关联起来的容器。
