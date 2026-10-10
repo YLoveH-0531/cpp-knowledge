@@ -141,7 +141,6 @@ Defined in `<memory>`. These functions **construct** elements in the destination
 | `uninitialized_copy_n(b, n, b2)` | Copies `n` elements starting from `b` into raw memory starting at `b2`. |
 | `uninitialized_fill(b, e, t)` | Constructs objects in the range `[b, e)` of raw memory as copies of `t`. |
 | `uninitialized_fill_n(b, n, t)` | Constructs `n` objects starting at `b`. `b` must denote unconstructed, raw memory large enough. |
-![alt text](image.png)
 
 ### d. Example
 
