@@ -585,7 +585,7 @@ int main() {
     auto addr = [](const void* p) { return reinterpret_cast<std::uintptr_t>(p); };
     std::cout << addr(b + 1) - addr(b) << ' '                  // 4  跨一个元素
               << addr(&b + 1) - addr(&b) << ' '                // 16 跨整个数组
-              << array_size(a) << ' ' << array_size(a[0]) << '\n';   // 3 4
+              << array_size(a) << ' ' << array_size(a[0]) << '\n';   // 3 4   ⚠️ 易错：是 3 不是 12，见答案
 
     // ---- 值语义：内置数组不能拷贝，包进 struct（std::array）就能 ----
     // int d[4] = b;                                           // ✗ 编译失败
@@ -602,6 +602,12 @@ int main() {
 <details><summary>答案</summary>
 
 无警告通过，输出两行：`4 16 3 4` 和 `4`。（`b + 1` 跨 4 字节，`&b + 1` 跨 16 字节；`array_size(a)` 是 3，`array_size(a[0])` 是 4。）
+
+⚠️ 易错：`array_size(a)` 是 3，不是 3×4 = 12。它问的是"外层有几个元素"（像 Python 的 `len`），不是"一共有几个 `int`"。
+
+- 从外往里读类型：`int a[3][4]` 是"3 个 `int[4]` 组成的数组"，它的元素是一整行（`sizeof(a[0])` 是 16）。
+- `const T (&)[N]` 匹配 `int[3][4]` 只有一种对法：`N = 3`，`T = int[4]`，只剥最外层。再剥一层才是 `array_size(a[0])`：`N = 4`，`T = int`。
+- 可以结合int *p = a[0],或者 int (*p)[4] = decltype(a[0])一起理解
 
 </details>
 
