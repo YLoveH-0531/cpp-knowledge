@@ -2,11 +2,9 @@
 
 ## Why
 
-The size or number of objects is determined at runtime, or when an object's lifetime needs to extend beyond the scope in which it is created.
+Dynamic allocation is needed when the size or number of objects is only known at runtime, or when an object's lifetime must extend beyond the scope in which it is created.
 
 ## What
-
-A new-expression and a delete-expression each do two jobs, one on the storage and one on the object living in it: `new` allocates the storage and then initializes the object, and `delete` destroys the object and then deallocates the storage.
 
 ```text
                      storage                        object
@@ -27,7 +25,7 @@ A new-expression and a delete-expression each do two jobs, one on the storage an
 - `operator new`, `operator new[]`, `operator delete`, `operator delete[]`: allocation/deallocation functions. The global versions are free functions; a class may also define static member versions. They can be invoked implicitly by new/delete expressions or called directly by the user, but a direct call only allocates or frees raw storage: no initialization or destruction happens.
 - Common mistake: mixing up `new`/`delete` expressions and `operator new`/`operator delete`. New/delete expressions are language constructs, while operator new/delete are functions used by those constructs. A new-expression may call an allocation function and, if initialization fails, the matching deallocation function.
 
-### ii. Semantics
+### ii. Expression semantics
 
 #### 1. new expression
 
@@ -43,9 +41,9 @@ The steps are the same as above; only step 1 differs. `args` are passed to the a
 
 | Form | Selected allocation function | Effect |
 |---|---|---|
-| `new (std::nothrow) T` | `operator new(size_t, const std::nothrow_t&)` | Allocates; reports failure by returning null instead of throwing `std::bad_alloc`. |
+| `new (std::nothrow) T` | `operator new(size_t, const std::nothrow_t&)` | Allocates; reports failure by returning null instead of throwing `std::bad_alloc`. This applies to allocation failure only; initialization may still throw an exception. |
 | `new (buffer) T` | `operator new(size_t, void*)`, the standard non-allocating placement form | Allocates nothing; returns `buffer` unchanged, so the object is initialized in existing storage. |
-| `new (pool) T` | user-defined, e.g. `operator new(size_t, Pool&)` | Whatever the function does, e.g. takes storage from a pool. |
+| `new (pool) T` | user-defined, e.g. `operator new(size_t, Pool&)` | Defined by the user, e.g. takes storage from a pool. |
 
 > **Terminology:** strictly, the standard calls any new-expression with extra arguments in parentheses a *placement new-expression*, including `new (std::nothrow) T`. In everyday use, "placement new" usually means only the `new (buffer) T` form.
 
@@ -92,8 +90,8 @@ void  operator delete[]( void* ptr, void* place ) noexcept;
 1. **Global:** The library's versions of `operator new`/`delete` (including the placement forms) are declared in the global namespace (`::`), not within the `std` namespace.
 2. **Implicit:**
    - The plain forms of `operator new`, `operator new[]`, `operator delete` and `operator delete[]` (including their sized-deallocation (C++14) and alignment-aware (C++17) variants) are implicitly declared in every translation unit. The `nothrow` and placement forms are not; they require `#include <new>`. So `new T` and `delete p` need no header, whereas `new (std::nothrow) T` and `new (p) T` do.
-3. **Replaceable:** The global allocation/deallocation functions are replaceable, except the non-allocating placement forms (see Special case below).
-   - **Replace:** define a function with the same signature at global scope; the replacement is then used by every call that selects that global function, including calls from inside the standard library (e.g. `std::allocator`). Typical uses: memory pools and leak tracking. Only one such definition is allowed per program.
+3. **Replaceable:** The global allocation/deallocation functions are replaceable.
+   - **Replace:** define a function with the same signature at global scope; the replacement is then used by every call that selects that global function, including calls from inside the standard library (e.g. `std::allocator`). Only one such definition is allowed per program. Not allowed for the standard non-allocating placement forms (see Special case below).
    - **Overload:** add a version with different parameters, e.g. `operator new(size_t, Pool&)`, and call it as `new (pool) T`. The original version is unaffected.
    - **Class-specific:** declare `operator new`/`operator delete` as static members of a class, with whatever extra parameters you need. They apply only to that class and its derived classes. A class-specific `operator new` hides all the global ones, including the placement forms; `::new ((void*)p) T(...)` bypasses it (libstdc++'s `std::allocator::construct` is written this way).
    - **Special case:** the standard non-allocating placement forms (`operator new`/`new[]` with `(size_t, void*)` and `operator delete`/`delete[]` with `(void*, void*)`) are reserved: a program may not replace them by defining global functions with the same signatures. The ban covers replacement only: overloads and class-specific versions are not affected, even a class-specific one with the same signature (e.g. `void* T::operator new(size_t, void*)`).
@@ -131,19 +129,21 @@ char *p = new char[0];           // legal, returns a valid non-null pointer, but
 #### 2. Placement new
 
 ```cpp
-new (place_address) type
-new (place_address) type (initializers)
-new (place_address) type [size]
-new (place_address) type [size] { braced initializer list }
+new (place_address) type                                   // default-initialized
+new (place_address) type (initializers)                    // direct-initialized
+new (place_address) type [size]                            // each element default-initialized
+new (place_address) type [size] { initializer list }       // aggregate-initialized
 ```
 
-### v. allocator class
+### v. Related std lib
+
+#### 1. allocator class
 
 The library `allocator` class (defined in `<memory>`) separates allocation from construction.
 
 > **Version note:** The examples use the older allocator interface. The `construct()` and `destroy()` member functions of `std::allocator` were removed in C++20. The underlying separation between storage allocation and object lifetime remains relevant.
 
-#### 1. Operations
+##### a. Operations
 
 | Expression | Description |
 |---|---|
@@ -153,19 +153,20 @@ The library `allocator` class (defined in `<memory>`) separates allocation from 
 | `a.construct(p, args)` | `p` must point to raw memory; `args` are passed to a constructor for type `T`, which constructs an object at `p`. |
 | `a.destroy(p)` | Runs the destructor on the object pointed to by `p`. |
 
-#### 2. Example: construct and destroy
+##### b. Example: construct and destroy
 
 ```cpp
-auto q = p;  // q will point to one past the last constructed element
-alloc.construct(q++);            // *q is the empty string
-alloc.construct(q++, 10, 'c');   // *q is cccccccccc
-alloc.construct(q++, "hi");      // *q is hi!
+auto q = p;  // points to the end of the constructed range
+
+alloc.construct(q++);            // constructs an empty string at the old q
+alloc.construct(q++, 10, 'c');   // constructs "cccccccccc" at the old q
+alloc.construct(q++, "hi");      // constructs "hi" at the old q
 
 while (q != p)
-    alloc.destroy(--q);          // free the strings we actually allocated
+    alloc.destroy(--q);          // destroy the constructed strings in reverse order
 ```
 
-#### 3. Algorithms to copy and fill uninitialized memory
+#### 2. Algorithms to copy and fill uninitialized memory
 
 Defined in `<memory>`. These functions **construct** elements in the destination, rather than assigning to them.
 
@@ -176,7 +177,7 @@ Defined in `<memory>`. These functions **construct** elements in the destination
 | `uninitialized_fill(b, e, t)` | Constructs objects in the range `[b, e)` of raw memory as copies of `t`. |
 | `uninitialized_fill_n(b, n, t)` | Constructs `n` objects starting at `b`. `b` must denote unconstructed, raw memory large enough. |
 
-#### 4. Example: copy and fill
+Example: copy and fill
 
 ```cpp
 // allocate twice as many elements as vi holds

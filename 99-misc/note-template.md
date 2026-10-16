@@ -27,7 +27,7 @@ It combines the layout of [array.md](../01-basic/array.md), the Why / What / How
 
 ### ii. Mechanism
 
-<!-- Steps or semantics as a numbered list, one action per item. Use #### 1. only when a ### section needs splitting, and go no deeper. -->
+<!-- Steps or semantics as a numbered list, one action per item. Use #### 1. only when a ### section needs splitting, and ##### a. only when a #### mixes jobs (rule 3); go no deeper. -->
 
 ### iii. Syntax and signatures
 
@@ -90,7 +90,7 @@ Verifies:
 ## Style rules
 
 1. **One H1, first.** The file starts with a single `#` title, followed by `##` sections. Headings use the `#` style, have a blank line above and below, never skip a level, and have unique text. (Google; MD001 MD003 MD022 MD024 MD025 MD041)
-2. **Fixed section order.** Why, What, How, Relation, Example, then the optional Key Points and Note, with Reference always last. (array.md puts What before Why; the framework puts Why first.) Inside a `##` section use `### i.` (roman), then `#### 1.` (arabic), and nothing deeper. Use sentence case for `###` and below. (array.md; Google)
+2. **Fixed section order.** Why, What, How, Relation, Example, then the optional Key Points and Note, with Reference always last. (array.md puts What before Why; the framework puts Why first.) Inside a `##` section use `### i.` (roman), then `#### 1.` (arabic), and, only when a subsection mixes jobs (rule 3), `##### a.` (lowercase letter, so a child never repeats its parent's number). Stop at `#####`: Markdown allows six levels and Google's guide sets no limit, so this cap is only a convention of this template (array.md itself stops at `####`). Use sentence case for `###` and below. (array.md; Google; MD001 forbids skipping a level)
 3. **One job per subsection:** explain (concepts, mechanism), look up (signatures, tables) or do (usage, example). Do not mix them inside one subsection. (The three categories come from Diataxis: explanation, reference, how-to.)
 4. **Code is always fenced, with a language:** `cpp`, and `text` for diagrams and program output. Put a blank line above and below, and a comment on every snippet saying what it shows. (Google; MD031 MD040)
 5. **Tables are for uniform two-dimensional data** (forms x properties): short cells, no prose, a blank line above and below. Anything else is a list. (Google; MD055 MD056 MD058)
