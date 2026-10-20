@@ -192,7 +192,7 @@ uninitialized_fill_n(q, vi.size(), 42);
 
 ### i. Issues
 
-When using raw pointers and manual new/delete, the programmer must ensure that objects and their storage are released correctly. Otherwise, problems such as resource leaks, dangling pointers, and double deallocation may arise. All three come from the same root: a raw pointer holds only an address; it does not say who owns the object or when it must be released.
+When manually managing dynamic objects with raw pointers and `new`/`delete`, the programmer must ensure that objects are destroyed and their storage is released correctly. Mistakes can lead to memory leaks, dangling pointers, or double deallocation. A raw pointer stores an address but does not express ownership or guarantee how long the pointed-to object remains valid.
 
 ### ii. RAII (Resource Acquisition Is Initialization)
 
@@ -203,6 +203,23 @@ RAII ties the acquisition of a resource to an object's lifetime: the resource is
 ## Example
 
 <!-- TODO: a complete program, its output, and a "Verifies:" list. Question to answer: when the initialization throws inside a new-expression, which operator delete runs? -->
+
+Think of a new-expression as the code below. "Matching" means the deallocation function receives the same extra arguments as the allocation function.
+
+```cpp
+// pseudocode: new T(args) with extra placement arguments extra...
+p = operator new(sizeof(T), extra...);
+try {
+    // construct T at p
+} catch (...) {
+    operator delete(p, extra...);   // only if a matching function is found
+    throw;
+}
+```
+
+- The deallocation function is looked up with the same extra arguments (the parameters after `void*` match those after `size_t` in the allocation function): class scope first, then global. If no match is found, nothing is called and the storage is not released.
+- This cleanup exists only for storage that was obtained but not yet used: if the allocation function itself throws, nothing was allocated and no deallocation function is called; with a non-throwing allocation function (`nothrow`) that returns null, initialization is skipped and the expression yields null.
+- It belongs to the new-expression alone. After successful construction, `delete p` always selects the ordinary `operator delete`, never the placement-form one, so a placement-form `operator delete` runs only when initialization throws.
 
 ## Reference
 
