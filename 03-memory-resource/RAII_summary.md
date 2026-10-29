@@ -1,38 +1,40 @@
-# RAII(Resource Acquisition Is Initialization)
+# RAII (Resource Acquisition Is Initialization)
 
 ## What
 
-RAII is actually a C++ programming technique that binds the lifetime of a resource, which must be acquired before use, to the lifetime of an object. The key idea is that a resource is always owned by a local (scoped) object (called a resource handle). The handle’s constructor acquires the resource and the handle’s destructor releases it.
+RAII is a C++ technique that binds responsibility for managing a resource to the lifetime of an object. Typically, a resource handle acquires or adopts the resource during construction and releases it during destruction.
 
 ```text
- constructor   acquire the resource          if it fails: throws, no object exists
-     |
-     v
- in use        the object owns the resource
-     |
-     |         leave the scope by any exit: normal end, early return/break,
-     |         or an exception (stack unwinding)
-     v
- destructor    release the resource (promise not to throw)
+ constructor   acquire or adopt the resource
+               if construction fails, see How ii
+      |
+      v
+    in use     the object owns the resource
+      |
+      |        leave the scope normally or through
+      |        an exception (stack unwinding)
+      v
+ destructor    release the resource
+               (must not let exceptions escape)
 ```
+
+**Guarantee and limits:** On normal scope exit, or during stack unwinding as an exception propagates toward a matching handler, C++ destroys fully constructed automatic objects in reverse order of construction. RAII relies on their destructors to run cleanup. It does not guarantee that cleanup succeeds or that cleanup occurs when execution terminates without stack unwinding.
 
 ## Why
 
-The constructor/destructor technique generalizes to any scoped use of a resource.
+### i. What is a resource?
 
-### 1. What is a resource?
+A resource is anything that a program acquires from another part of the system and must (explicitly or implicitly) release back to the system after use.
 
-A resource is anything that a program acquires from another part of the system and must (explicitly or implicitly) release back to its owner after use.
+e.g., memory, files, sockets, locks, threads, and database transactions. RAII applies to all of them, not only memory.
 
-e.g., memory, files, sockets, locks, threads, and database transactions.
+### ii. Why is a leak so dangerous?
 
-### 2. Why is a leak so dangerous?
+If resources are not properly released, the system's performance will suffer and eventually a long-running system will fail, either by running out of the resource or, for a lock, by blocking other threads.
 
-If resources are not properly released, the system’s performance will suffer and eventually a long-running system will fail for lack of usable memory.
+### iii. What causes a leak?
 
-### 3. What causes a leak?
-
-C++ automatically manages object lifetimes, but it cannot automatically determine how to release every resource represented by a raw pointer or handle: destroying a raw pointer does nothing to the resource it points to. Manual cleanup is fragile because early returns, exceptions, and other control-flow paths may bypass the cleanup code.
+Destroying a raw pointer or a raw handle such as a `FILE*` releases nothing, so the release (`delete`, `fclose`, `unlock`) is a separate step that the programmer must write on every exit path. Early returns and exceptions can skip it. Dangling pointers and double deallocation, the other pitfalls of raw `new`/`delete`, are covered in [new-delete.md](new-delete.md).
 
 **Example:**
 
@@ -44,263 +46,183 @@ void f() {
 }
 ```
 
-### 4. Solutions?
+### iv. Solutions?
 
 The core question: Without counting paths, **how can we guarantee that resources are released regardless of which exit path is taken?**
 
-1. `finally`: C++ has no `finally` statement, and it would need a cleanup clause at every acquisition site. There are far more acquisitions than kinds of resources, so it means more code than RAII, where each resource kind writes its release once in a handle class ([Stroustrup FAQ](https://www.stroustrup.com/bs_faq2.html#finally)).
-2. Bind the release operation to something that is guaranteed to execute when the scope is exited normally or by an exception (stack unwinding): an object's destructor.
+1. `finally`: C++ has no `finally` statement, and it would need a cleanup clause at every acquisition site. Acquisitions far outnumber resource kinds, so this takes more code than RAII ([Stroustrup FAQ](https://www.stroustrup.com/bs_faq2.html#finally)).
+2. RAII: encapsulate the release in a handle's destructor, which the language runs when the scope is exited, normally or by an exception. The release is written once per kind of resource, and the code that uses the resource contains no cleanup.
 
 ## How
 
 ### i. Key points
 
-#### 1. class invariant
+#### 1. Class invariant
 
-类不变量（class invariant）：关于对象内部状态的逻辑约束。构造函数成功完成时建立它；公共成员函数在满足前置条件时，可以假设它成立，并应在函数结束时保持它成立（包括抛出异常但对象仍然存活的情况）。函数内部可以暂时破坏不变量，但不能将不一致状态暴露给外部。
+A class invariant is a condition that defines a valid object state. A successful constructor establishes it, and public member functions should preserve it whenever they return. If a function throws but the object remains alive, it should leave the object in a state that still satisfies the invariant. A function may temporarily violate the invariant internally, but must restore it before returning or exposing the object.
 
-资源句柄类的不变量通常涉及资源的所有权与句柄状态：对象要么拥有一个由它负责释放的资源，要么处于类明确允许的空状态；析构函数能安全处理每一种允许的状态。
+For an RAII handle, the invariant defines the states the destructor must safely handle. The handle either owns a resource it is responsible for releasing or is in an explicitly permitted empty state.
 
-|          | 规定                             | 例子                          |
-|----------|----------------------------------|-------------------------------|
-| 不可为空 | 对象存在 ⇒ 持有资源              | `lock_guard`                  |
-| 可为空   | 持有有效资源，或处于明确的空状态 | `unique_ptr`、可移动的 `File` |
+| State | Example |
+| --- | --- |
+| Must hold the resource after successful construction | `lock_guard` |
+| May be empty | `unique_ptr`, `ofstream` |
 
-不变量约束的是对象状态和所有权关系，不意味着底层资源在对象存活期间绝不会失效。资源是否存在、是否可用，还取决于资源本身及其底层 API。
+The invariant describes the handle's state and ownership; it does not guarantee that an external resource remains valid or usable.
 
-#### 2. ownership
+#### 2. Ownership
 
-资源从创建或获取开始，到最终释放结束，构成资源的生命周期。Ownership 是资源存续期间的管理责任：初始 owner 通常在获取资源时建立所有权，随后负责管理资源，并确保它得到正确释放。如果发生所有权转移，管理责任就转交给新的 owner，最终由当前负责的 owner 按照约定释放资源。RAII 通过将这份责任绑定到对象生命周期，使资源清理能够自动完成。
-eg，
-| 类别 | 例子 | 析构时 |
-|---|---|---|
-| 拥有型 | 值成员、`vector`、`unique_ptr` | 释放资源 |
-| 非拥有型观察者 | 引用、裸指针、`string_view` | 不释放 |
-| 特殊：`weak_ptr` | `weak_ptr` | 不拥有所观察的对象，但参与控制块的生命周期管理（见 [smart-pointers-draft.md](smart-pointers-draft.md)） |
+Ownership is the responsibility for managing a resource and ensuring its proper release. RAII binds this responsibility to an object's lifetime. Destroying an owning handle relinquishes its ownership; the release operation of an exclusively owned resource runs then, while a shared resource remains alive until the last owner releases it.
 
-Note: 资源生命周期是一条时间线；ownership 是这条时间线上持续存在、可能转移或共享的责任关系；创建、移动和释放，则是这条时间线上可能发生的具体动作
+A non-owning observer can access a resource but is not responsible for releasing it.
 
-#### 3. What RAII guarantees 
-RAII 将资源清理责任绑定到拥有者对象的生命周期。当对象正常销毁或在异常栈展开过程中销毁时，会执行析构清理。RAII 不保证底层清理操作一定成功，也不保证进程被强制终止时仍会执行清理。
+> **Note:** Resource lifetime runs from creation or acquisition to final release. Ownership is the responsibility for managing that lifetime; acquisition, adoption, transfer, and release are actions that may occur during it.
 
 ### ii. Construction: acquire, or leave no object behind
 
-对于设计成“构造成功后即可使用”的资源句柄类，优先让构造函数成功返回时对象已经满足不变量；如果无法建立所要求的状态，就抛出异常，或通过工厂函数返回明确的错误结果，而不是悄悄留下一个未初始化的对象。
+For a resource handle that is meant to be ready for use after construction, the constructor should establish the class invariant. On success, the object owns a valid resource or is in an explicitly permitted empty state. If a required resource cannot be acquired, the constructor should normally throw rather than leave the object partially initialized (Core Guidelines C.42).
 
-**为什么在构造函数里获取资源。** Resource Acquisition Is Initialization 这个名字给出了答案：获取资源是初始化的一部分，所以句柄不会处于"还没获取"这种意外状态：它要么持有一个有效资源，要么处于设计时明确规定的空状态，这正是 i.1 里的类不变量。析构函数只需要处理这两种状态。
+Since constructors cannot return an error value, exceptions are the usual choice. If exceptions are not used, a factory function can return an explicit result, such as `std::optional` or `std::expected` (C++23). Avoid two-phase initialization unless an uninitialized state is an intentional part of the design.
 
-这也让 What 里的"绑定"更精确：对象持有资源的那段时间包含在它的生命周期之内，但两者并不相等，因为对象可以是空的，也可以提前释放（`reset()`）。所以获取资源是"通常"而不是"必须"在构造函数里。
+**What happens when construction fails?** ([except.ctor](https://eel.is/c++draft/except.ctor))
 
-**构造失败怎么报告？** 构造函数没有返回值，常见做法有四种：
+1. If a non-delegating constructor throws, the object's destructor is not called.
+2. Fully constructed base and member subobjects are destroyed in reverse order of construction.
+3. If initialization takes place in a `new` expression, such as `new T(...)`, the expression calls a matching deallocation function for the allocated storage, if one is found.
 
-| 方案 | 失败时的表现 | 代价 |
-|---|---|---|
-| 构造抛异常 | 对象不存在，异常向外传播 | 需要异常机制可用 |
-| `valid()` | 对象存在但无效，调用者要检查 | 忘记检查；成员函数处处防御 |
-| 两段式初始化 | 对象存在但未初始化 | 忘记调用 `init` |
-| 工厂 + `optional/expected` | 返回空或错误信息，调用者处理 | 错误不能自动向上传播 |
-
-默认选择是抛异常（Core Guidelines C.42）：构造成功后，对象满足类不变量；构造失败并抛出异常时，不会产生一个已完整构造的对象。异常保证的不是"获取一定成功"，而是失败不会被悄悄吞掉，也不会留下无效对象。反过来，RAII 让异常能被安全使用：异常制造大量隐形出口，RAII 在栈展开时替你清理。
-
-**语言规则**（构造函数抛异常时，[except.ctor](https://eel.is/c++draft/except.ctor)）：
-
-1. 对象的生命周期从构造完成才开始，所以**本类析构函数不调用**；
-2. **已完整构造的成员和基类**按构造完成的逆序析构；
-3. 若是 `new T(...)`，由 new 表达式调用匹配的 `operator delete`（见 [new-delete.md](new-delete.md)）。
-
-所以，如果某个资源还没有交给已完整构造的对象持有，构造函数的后续步骤一旦抛出异常，它就泄漏了。成员是对象的**子对象**，不是构造函数里的局部变量（`new Good` 时它们在堆上，没有"栈"可退）。`Bad` 泄漏了 `a_`，`Good` 的成员会自己清理：
+This creates a potential leak: resources acquired directly into raw pointers are not automatically released when the enclosing object's constructor throws.
 
 ```cpp
-class Bad {                       // b_ 的 new 抛异常 → a_ 泄漏
-    int *a_, *b_;                 // 裸指针没有析构动作，~Bad 也不会被调用
+class Bad {
+    int* a_;
+    int* b_;
+
 public:
-    Bad() { a_ = new int[100]; b_ = new int[100]; }
+    Bad() : a_(nullptr), b_(nullptr) {
+        a_ = new int[100];
+        b_ = new int[100];  // If this throws, a_ leaks.
+    }
 };
 
-class Good {                      // b_ 抛异常 → 已构造的 a_ 自动析构
+class Good {
     std::unique_ptr<int[]> a_, b_;
+
 public:
-    Good() : a_(new int[100]), b_(new int[100]) {}
+    Good()
+        : a_(std::make_unique<int[]>(100)),
+          b_(std::make_unique<int[]>(100)) {}
 };
 ```
 
-由此得到纪律（Core Guidelines R.12）：资源一获取，就应立即交给资源管理对象接管，避免资源暂时处于无人管理的状态，之后又执行可能抛异常的操作。落到类的设计上：**每个资源由一个成员对象持有**，清理放在这个成员自己的析构里，而不是外层对象的析构里，构造函数体里不要出现裸的 `new/open/lock`。最底层的句柄直接持有一个裸资源，所以它只持有这一个，并且获取成功之后不再做可能抛异常的事。
+If the second allocation fails, `Bad`'s destructor is not called, so the memory pointed to by `a_` leaks. In `Good`, the already-constructed member `a_` is automatically destroyed and releases its memory.
 
-**和正常析构对比**：销毁成员和基类的顺序、规则一致，区别只有：
+**Design rule (Core Guidelines R.12):** Give each acquired resource to an RAII owner as soon as possible. In higher-level classes, represent independently managed resources with RAII members, so each member handles its own cleanup. Avoid keeping resources unmanaged across operations that may throw.
 
-| | 正常析构 | 构造失败 |
-|---|---|---|
-| 本类析构函数体 | 执行 | **不执行** |
-| 被销毁的子对象 | 全部 | 只有已完整构造的 |
-| function-try-block 的 handler | 无 | 在成员销毁之后执行，结束时异常自动重新抛出 |
-
-最关键的是第一行：析构函数体里写的清理逻辑，构造失败时一行都不会跑，所以清理必须放进**成员对象自己的析构**里。
-
-**委托构造的例外**：目标构造函数一旦完成，对象就算构造完成。此后委托构造函数的体抛异常，会调用析构函数，且先于 function-try-block 的 handler；目标构造函数本身抛异常，则和普通构造一样，不调用析构（g++ 与 clang++ 实测一致）。
-
+> **Edge case — delegating constructors:** If the target constructor completes but the delegating constructor's body then throws, the object's destructor is called. If the target constructor itself throws, the ordinary construction-failure rules apply.
 
 ### iii. Destruction: release, and never throw
 
-异常传播时也一样。 异常沿调用栈向外传递，直到被某个 handler 捕获；它离开的每个作用域，都会销毁其中已完整构造的局部对象。这个过程叫栈展开（stack unwinding）。
-析构函数会在栈展开期间运行（见 i）。如果其中一个析构函数抛出的异常逃出了它，就有两个异常同时在传播，C++ 会调用 `std::terminate`。所以析构函数**不能让异常逃出**：它默认是 `noexcept` 的（除非某个成员或基类的析构函数不是），Core Guidelines 的 C.36 和 C.37 也是这么说的。析构函数内部自己 `try/catch` 是没问题的。
+Construction establishes the class invariant. Destruction completes the object's lifetime by releasing the resources it owns. The destructor must safely handle every state permitted by the invariant, including an empty or moved-from state. This happens when the object leaves its scope normally or when an exception causes the scope to be exited.
 
-如果释放操作本身可能失败：
+**Stack unwinding** is the process of leaving scopes while an exception propagates toward a matching handler. As each scope is exited, fully constructed local objects are destroyed in reverse order of construction. Their destructors run automatically, allowing RAII to release resources even when an exception interrupts normal execution.
 
-- **尽力而为**：记日志或吞掉，适用于失败了也无法补救的情况。
-- **调用者必须知道结果**：提供显式的 `close()`，析构函数只做兜底（`ofstream` 就是这样）。
-- **既是释放、又可能失败的操作**：把它拆开。`commit()` 可以抛异常，析构函数只做回滚。
+#### 1. Why must destructors not throw?
 
-### iv. Ownership: who releases, and how many times
+A destructor may run during stack unwinding, while another exception is already propagating. If a second exception escapes the destructor, the program calls `std::terminate`. Since destructors often run implicitly, including during stack unwinding, there is generally no reliable way for the caller to handle a cleanup error at that point.
 
-现在一个句柄已经能正确地获取和释放了，但资源只能被释放一次，所以每个资源都需要一套明确的所有权策略。**谁拥有资源，谁负责释放；只是引用它的，不负责。** 拥有者：值成员、`vector`、`unique_ptr`、`shared_ptr`。非拥有者：引用、裸指针、`string_view`，以及 `weak_ptr`（见 [smart-pointers-draft.md](smart-pointers-draft.md)）。
+A destructor is implicitly `noexcept` unless a base or member destructor can throw, and an exception escaping a `noexcept` destructor terminates the program even when no other exception is in flight. A destructor may still call a function that can throw, or even throw an exception internally, provided the exception is caught before it escapes the destructor.
 
-所有权决定了拷贝怎么做。编译器生成的逐成员拷贝会让两个对象持有同一个资源，并各释放一次，所以策略必须明确：
+#### 2. What if cleanup can fail?
 
-- 独占所有权：禁止拷贝（`File`、`unique_ptr`）；
-- 值语义：深拷贝，各自拥有一份（`vector`）；
-- 共享所有权：由最后一个拥有者释放（`shared_ptr`）。
+- **Best effort:** Catch the error, log it if useful, and return normally when the failure cannot be meaningfully recovered from.
+- **Report the error explicitly:** Provide a `close()` function that lets the caller handle failure; keep the destructor as a fallback for cleanup.
+- **Separate the fallible operation from cleanup:** For a transaction, let `commit()` report failure, while the destructor rolls back an uncommitted transaction.
 
-**移动**转移所有权，并且被移走的对象必须仍然能安全析构。对句柄来说，通常的设计是落到 ii 里说的空状态（标准库对象在移动之后，一般只保证处于有效但未指定的状态）。**零法则（Rule of Zero）**：让成员（`unique_ptr`、`vector`）去拥有资源，自己不写任何特殊成员函数，编译器生成的就都是正确的。详见 [copy-and-move-draft.md](copy-and-move-draft.md)。
+**Design rule:** A destructor should attempt cleanup without allowing exceptions to escape. If the caller must know whether an operation succeeded, provide an explicit function for that operation.
+
+### iv. Ownership and the Rule of Three/Five/Zero
+
+RAII binds resource cleanup to an object's lifetime, but a class must also define who owns each resource and what copying or moving means. These decisions determine how the resource is released and whether ownership is transferred, duplicated, or shared.
+
+#### 1. Why do copy and move semantics matter?
+
+A compiler-generated copy of a raw resource handle copies the handle value, not the underlying resource. If two objects then treat the same resource as exclusively owned, both may try to release it, causing a double release.
+
+A resource-owning class must therefore make its special member functions consistent with its ownership policy.
+
+#### 2. Rule of Three/Five/Zero
+
+1. **Rule of Three**
+
+   If a class needs a user-defined destructor, copy constructor, or copy assignment operator, consider all three together. When a class directly manages a resource, default copying may duplicate the handle without duplicating the resource.
+
+   The class must implement copying correctly, or disable it if the resource has exclusive ownership.
+
+2. **Rule of Five**
+
+   Since C++11, also consider the move constructor and move assignment operator. If any of these five special member functions is user-declared, including as `= delete`, consider all five and define, default, or delete each as appropriate.
+
+   For exclusive ownership, moving transfers the resource to the destination. The source must remain safe to destroy, typically by being left in an empty state. Move assignment must also deal with any resource already owned by the destination.
+
+3. **Rule of Zero**
+
+   Prefer using existing RAII types to manage resources. If members such as `std::unique_ptr`, `std::vector`, or `std::string` already express the intended ownership policy, the enclosing class usually needs no user-defined destructor, copy operations, or move operations. The compiler-generated operations then follow the semantics of the member types.
+
+   For example, a handle that wraps a `FILE*` may need custom or deleted special member functions to manage its resource correctly. A higher-level class that holds such handles as members can usually delegate cleanup to them instead of implementing resource management again.
+
+**Design rule:** Prefer the Rule of Zero. Use the Rule of Three/Five when a class must directly manage a resource or define special ownership semantics.
 
 ### v. Standard handles: smart pointers and non-memory resources
 
-智能指针是 RAII 的标准化应用，用类型表达所有权。
+The standard library already provides handles for common resources:
 
-| 类型 | 管理的资源 | 所有权 |
-|---|---|---|
-| `vector`、`string` | 动态存储及其中的元素 | 独占，深拷贝 |
-| `unique_ptr` | 一个动态分配的对象或数组 | 独占，只能移动 |
-| `shared_ptr` | 同上 | 共享，引用计数 |
-| `lock_guard` | 一把被持有的互斥锁 | 不可拷贝，不可移动 |
-| `ofstream` | 一个打开的文件 | 独占，可移动 |
+| Type | Managed resource | Ownership / semantics |
+| --- | --- | --- |
+| `vector`, `string` | dynamic storage and the elements in it | exclusive; copying copies the elements |
+| `unique_ptr` | one dynamically allocated object or array | exclusive; move-only |
+| `shared_ptr` | same | shared; reference-counted |
+| `lock_guard` | the lock held on a mutex | exclusive, scope-bound; non-copyable, non-movable |
+| `ofstream` | an open file | exclusive; movable |
 
-资源不是内存时，提供自定义删除器即可，否则默认删除器会对它 `delete`：
+When a resource requires a release operation other than the default `delete` or `delete[]`, supply a custom deleter.
 
 ```cpp
 struct Closer { void operator()(std::FILE* f) const noexcept { std::fclose(f); } };
-std::unique_ptr<std::FILE, Closer> p(std::fopen("a", "r"));   // 析构时 fclose，不是 delete
+std::unique_ptr<std::FILE, Closer> p(std::fopen("a", "r"));   // fclose on destruction, not delete
 ```
 
-删除器的规则、`make_unique/make_shared`、控制块见 [smart-pointers-draft.md](smart-pointers-draft.md)。
-
+See [smart-pointers-draft.md](smart-pointers-draft.md) for deleter rules, `make_unique`/`make_shared`, and the control block.
 
 ## Relation
 
-### i. Issues
+### Connection
 
-没有 RAII，资源释放靠调用者在每条路径上手写，提前 `return`、异常、后来新增的分支都会漏掉；裸指针只存地址，不表达谁拥有、对象能活多久。
+- **[new-delete](new-delete.md):** A `new` expression allocates storage and initializes an object; a `delete` expression destroys the object and releases its storage. RAII ties the appropriate cleanup to the owning handle's lifetime.
+- **[array](../01-basic/array.md):** `new T[n]` returns a pointer without retaining the array's size. `std::vector` manages storage, element lifetime, and size together.
+- **[Exception safety](../07-language-mechanics/exception-safety-draft.md):** RAII prevents resource leaks during stack unwinding. Exception-safety guarantees additionally specify the state of an object or program after an operation fails.
+- **Move semantics:** Move operations can transfer ownership from one object to another.
 
-### ii. Connection
-
-- [new-delete](new-delete.md)：`new/delete` 把"存储"和"对象"分成两半；RAII 把"谁负责走完这两半"绑到析构上。构造失败时由 new 表达式调用匹配的 `operator delete`，是同一条清理思想。
-- [Array](../01-basic/array.md)：`new T[n]` 得到不带大小的裸指针，`vector` 把 `new[]`、大小和 RAII 封装起来。
-- [exception-safety](../07-language-mechanics/exception-safety-draft.md)：栈展开时 RAII 释放资源，是异常安全的基础。保持对象的不变量（基本保证）或把状态恢复到调用前（强保证，如 copy-and-swap）不归 RAII 管，见该篇。
-- 移动语义：移动技术负责在作用域之间转移所有权。
-
-**See also:** [copy-and-move-draft.md](copy-and-move-draft.md)：所有权的转移与特殊成员函数；[smart-pointers-draft.md](smart-pointers-draft.md)：RAII 的标准化应用。
+**See also:** [copy-and-move-draft.md](copy-and-move-draft.md) for ownership transfer and special member functions; [smart-pointers-draft.md](smart-pointers-draft.md) for smart-pointer design and implementation details.
 
 ## Example
 
-文件句柄、带两个资源的类、`lock_guard`。`TwoFiles` 没有任何特殊成员函数，清理全靠成员 `File` 的析构。
-
-```cpp
-#include <cstdio>
-#include <mutex>
-#include <stdexcept>
-#include <utility>
-
-class File {
-    std::FILE* f_ = nullptr;
-public:
-    File(const char* path, const char* mode) : f_(std::fopen(path, mode)) {
-        if (!f_) throw std::runtime_error("open failed");   // failure: no object
-        std::puts("  File opened");
-    }
-    ~File() {
-        if (f_) { std::fclose(f_); std::puts("  File closed"); }
-    }
-    File(const File&) = delete;                             // sole owner
-    File(File&& o) noexcept : f_(std::exchange(o.f_, nullptr)) {}
-    File& operator=(File&&) = delete;
-    std::FILE* get() const { return f_; }
-};
-
-struct TwoFiles {                                           // no special members: members are RAII
-    File a_;
-    File b_;
-    TwoFiles(const char* pa, const char* pb) : a_(pa, "r"), b_(pb, "r") {}
-};
-
-void work_that_throws(const File&) { throw std::runtime_error("work failed"); }
-
-std::mutex m;
-bool is_locked() { if (m.try_lock()) { m.unlock(); return false; } return true; }
-
-int main() {
-    std::puts("1) open fails:");
-    try { File f("/no/such/file", "r"); }
-    catch (const std::exception& e) { std::printf("  caught: %s\n", e.what()); }
-
-    std::puts("2) exception after open:");
-    try { File f("/etc/hostname", "r"); work_that_throws(f); }
-    catch (const std::exception& e) { std::printf("  caught: %s\n", e.what()); }
-
-    std::puts("3) second member fails:");
-    try { TwoFiles t("/etc/hostname", "/no/such/file"); }
-    catch (const std::exception& e) { std::printf("  caught: %s\n", e.what()); }
-
-    std::puts("4) move:");
-    {
-        File a("/etc/hostname", "r");
-        File b(std::move(a));
-        std::printf("  a.get() == nullptr: %d\n", a.get() == nullptr);
-    }
-
-    std::puts("5) lock_guard:");
-    try {
-        std::lock_guard<std::mutex> g(m);
-        std::printf("  inside: locked=%d\n", is_locked());
-        throw std::runtime_error("work failed");
-    } catch (const std::exception& e) {
-        std::printf("  caught: %s, locked=%d\n", e.what(), is_locked());
-    }
-}
-```
-
-Output:
-
-```text
-1) open fails:
-  caught: open failed
-2) exception after open:
-  File opened
-  File closed
-  caught: work failed
-3) second member fails:
-  File opened
-  File closed
-  caught: open failed
-4) move:
-  File opened
-  a.get() == nullptr: 1
-  File closed
-5) lock_guard:
-  inside: locked=1
-  caught: work failed, locked=0
-```
+[test_raii.cpp](../../My_PPP/chapter00/src/exer/test_raii.cpp) in My_PPP defines a file handle `File`, a class `TwoFiles` that holds two of them, and a `lock_guard` case. It builds with the My_PPP CMake setup (C++11, `-Wall -Wextra -Wpedantic -Werror`), and the expected output is at the end of the file.
 
 Verifies:
 
-- 1：构造失败时没有 `File closed`，对象没存在过，析构不会被调用；
-- 2：`File closed` 先于 `caught`，清理发生在进入 handler 之前（栈展开）；
-- 3：第二个成员构造失败，已构造的第一个成员被自动析构；
-- 4：移动后旧对象为空，只有一个所有者关闭文件；
-- 5：异常离开作用域后锁已释放。
+1. Construction fails: there is no `File closed` line, so no destructor ran (How ii).
+2. `File closed` appears before `caught`: cleanup runs during stack unwinding, before the handler (What).
+3. The second member fails to construct: the first, already constructed member is destroyed automatically (How ii).
+4. After a move the source is empty, and only one owner closes the file (How i, iv).
+5. After the exception leaves the scope, the lock is released (What).
 
 ## Reference
 
-- Stroustrup, *Foundations of C++*（ETAPS 2012），据 [RAII.md](RAII.md) 的阅读路线读第 6–8 节；本草稿未对照原文核对
-- C++ Core Guidelines：R.1（用资源句柄和 RAII 管理资源）、R.12（显式分配的结果立即交给管理对象）、E.6（用 RAII 防止泄漏）、C.31（类获取的资源由析构释放，含"不拥有"的注）、C.36、C.37（析构不能失败，应 `noexcept`）、C.42（构造函数无法构造有效对象时抛异常）
-- cppreference: [Destructors](https://en.cppreference.com/w/cpp/language/destructor)、[RAII](https://en.cppreference.com/w/cpp/language/raii)
+- Stroustrup, *Foundations of C++* (ETAPS 2012), read sections 6–8 following the reading route in [RAII.md](RAII.md); this draft has not been checked against the original
+- C++ Core Guidelines: R.1 (manage resources with resource handles and RAII), R.12 (hand the result of an explicit allocation to a manager object immediately), E.6 (use RAII to prevent leaks), C.31 (a class's destructor releases the resources the class acquires, with a note on non-owning), C.36 and C.37 (a destructor must not fail and should be `noexcept`), C.42 (throw an exception if a constructor cannot construct a valid object)
+- cppreference: [Destructors](https://en.cppreference.com/w/cpp/language/destructor), [RAII](https://en.cppreference.com/w/cpp/language/raii)
 - C++ standard (draft), by claim:
-  - [except.ctor](https://eel.is/c++draft/except.ctor): 栈展开，构造失败时销毁已构造的子对象
+  - [class.dtor](https://eel.is/c++draft/class.dtor): when a block scope is left, destructors are invoked implicitly for the constructed objects of automatic storage duration
+  - [except.ctor](https://eel.is/c++draft/except.ctor): stack unwinding; when construction fails, the already constructed subobjects are destroyed
+  - [except.spec](https://eel.is/c++draft/except.spec): a destructor is implicitly `noexcept` unless a base or member destructor can throw
+  - [except.terminate](https://eel.is/c++draft/except.terminate): `std::terminate` is called when a destructor exits with an exception during stack unwinding, or an exception escapes a `noexcept` function; with no matching handler, or when `noexcept` is violated, whether the stack is unwound first is implementation-defined
