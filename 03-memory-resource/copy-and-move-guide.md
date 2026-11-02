@@ -4,13 +4,13 @@
 
 ## 在主线上的位置
 
-[RAII 笔记](RAII_summary.md) → [① 构造](../02-class-object-oop/lifetime-and-initialization-guide.md) → **② 移动（本篇）** → [③ 智能指针](smart-pointers-guide.md) → [④ 异常安全](../07-language-mechanics/exception-safety-guide.md)
+[RAII 笔记](RAII.md) → [① 构造](../02-class-object-oop/lifetime-and-initialization-guide.md) → **② 移动（本篇）** → [③ 智能指针](smart-pointers-guide.md) → [④ 异常安全](../07-language-mechanics/exception-safety-guide.md)
 
 ### 承接：上一篇留下的问题，和 RAII 笔记欠的三件事
 
 上一篇 [① 构造](../02-class-object-oop/lifetime-and-initialization-guide.md)的最后一个问题：用同类型的另一个对象初始化新对象，走的是拷贝构造或移动构造。
 
-[RAII 笔记](RAII_summary.md)的 How iv 已经交代了**为什么**要管这件事：编译器生成的拷贝只复制句柄的值、不复制资源，两个对象都把同一份资源当独占的，就会双重释放（iv.1）；所以类必须自己定义所有权策略，Rule of Three / Five / Zero 就是这套策略的写法（iv.2）。它留下了三件没讲的事：编译器**什么时候**生成这些操作；移动**到底做什么**；容器在**什么条件下**采用移动。这三件事就是本篇。
+[RAII 笔记](RAII.md)的 How iv 已经交代了**为什么**要管这件事：编译器生成的拷贝只复制句柄的值、不复制资源，两个对象都把同一份资源当独占的，就会双重释放（iv.1）；所以类必须自己定义所有权策略，Rule of Three / Five / Zero 就是这套策略的写法（iv.2）。它留下了三件没讲的事：编译器**什么时候**生成这些操作；移动**到底做什么**；容器在**什么条件下**采用移动。这三件事就是本篇。
 
 你手上已经有两份现成的材料：[Unique_ptr.h](../../My_PPP/chapter19/include/exer/Unique_ptr.h)（删拷贝、留移动）和 [Vector.h](../../My_PPP/chapter19/include/exer/Vector.h)（拷贝构造、copy-and-swap 的拷贝赋值、`noexcept` 的移动构造与移动赋值、`noexcept` 的 `swap`，`reserve` 里用了 `std::move_if_noexcept`）。本篇要把这两份代码里的做法，变成能讲清"为什么这样写"的笔记。
 

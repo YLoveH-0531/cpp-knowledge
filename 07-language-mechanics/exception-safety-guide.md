@@ -4,7 +4,7 @@
 
 ## 在主线上的位置
 
-[RAII 笔记](../03-memory-resource/RAII_summary.md) → [① 构造](../02-class-object-oop/lifetime-and-initialization-guide.md) → [② 移动](../03-memory-resource/copy-and-move-guide.md) → [③ 智能指针](../03-memory-resource/smart-pointers-guide.md) → **④ 异常安全（本篇）**
+[RAII 笔记](../03-memory-resource/RAII.md) → [① 构造](../02-class-object-oop/lifetime-and-initialization-guide.md) → [② 移动](../03-memory-resource/copy-and-move-guide.md) → [③ 智能指针](../03-memory-resource/smart-pointers-guide.md) → **④ 异常安全（本篇）**
 
 ### 承接：前三篇各自解决了一半
 
@@ -70,7 +70,7 @@
 | 2 读 | 只读上面的"必读"三项；边读边在你的例子旁边标：这里的承诺是哪一级？ | 1 | 带标注的例子 |
 | 3 动手 | 实验 A：把草稿里的三个实验按"先预测再跑"过一遍（0.5h）。实验 B：对你自己的 `Vector.h` 做强保证的断言验证（0.5h，选做，可以放到机动时间） | 1 | 预测与输出；断言验证表 |
 | 4 写 | 打开草稿对照：Why / What 用你自己的话重写；How 压成三段（基本 → 强 → 不抛），每段一个例子；Relation 用上面"前三篇各自解决了一半"那张表，改成你自己的话；Example 最多留两个实验。栈展开、构造失败、析构不抛只放 RAII 笔记的链接 | 1.25 | 笔记初稿 |
-| 5 封板 | 把草稿里指向 `RAII-draft.md` 的链接改成 [RAII_summary.md](../03-memory-resource/RAII_summary.md)（`RAII-draft.md` 计划在 W4 清理）；四条合格线自检；周五审一次，只修 P0/P1 | 0.25 | 封板 |
+| 5 封板 | 把草稿里指向已删除的 `RAII-draft.md` 的链接改成 [RAII.md](../03-memory-resource/RAII.md)；四条合格线自检；周五审一次，只修 P0/P1 | 0.25 | 封板 |
 
 ## 实验
 

@@ -1,6 +1,6 @@
 # Copy and move
 
-> 种子草稿：从 [RAII-draft.md](RAII-draft.md) 拆出来的特殊成员函数细节，已按评审意见校正，还没按模板整理，待你扩写。README 把"拷贝与移动"放在 02-class-object-oop，这个文件放哪里由你定。
+> 种子草稿：从 [RAII.md](RAII.md) 拆出来的特殊成员函数细节，已按评审意见校正，还没按模板整理，待你扩写。README 把"拷贝与移动"放在 02-class-object-oop，这个文件放哪里由你定。
 
 ## Special member functions
 

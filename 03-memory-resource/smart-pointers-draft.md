@@ -1,6 +1,6 @@
 # Smart pointers
 
-> 种子草稿：从 [RAII-draft.md](RAII-draft.md) 拆出来的智能指针细节，已按评审意见校正，还没按模板（Why / What / How / Relation / Example）整理，待你扩写。
+> 种子草稿：从 [RAII.md](RAII.md) 拆出来的智能指针细节，已按评审意见校正，还没按模板（Why / What / How / Relation / Example）整理，待你扩写。
 
 ## unique_ptr and deleters
 

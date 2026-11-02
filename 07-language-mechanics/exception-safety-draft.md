@@ -1,10 +1,10 @@
 # Exception Safety
 
-> AI 整理的草稿，未经你重写。构造失败的处理、析构不能抛异常，已经在 [RAII-draft.md](../03-memory-resource/RAII-draft.md) 里写过，这里只引用。Example 的输出是 g++ 11.4 `-std=c++17` 实跑结果。
+> AI 整理的草稿，未经你重写。构造失败的处理、析构不能抛异常，已经在 [RAII.md](../03-memory-resource/RAII.md) 里写过，这里只引用。Example 的输出是 g++ 11.4 `-std=c++17` 实跑结果。
 
 ## Why
 
-异常让每一个可能失败的调用都成了出口。RAII 负责出口上的**资源释放**（见 [RAII-draft.md](../03-memory-resource/RAII-draft.md)）。但出口还有另一个后果：**函数在中途离开，已经做过的修改不会被撤销。** 异常被捕获后程序继续运行，对象如果还活着，就带着那些做到一半的修改继续被使用：
+异常让每一个可能失败的调用都成了出口。RAII 负责出口上的**资源释放**（见 [RAII.md](../03-memory-resource/RAII.md)）。但出口还有另一个后果：**函数在中途离开，已经做过的修改不会被撤销。** 异常被捕获后程序继续运行，对象如果还活着，就带着那些做到一半的修改继续被使用：
 
 ```cpp
 class Image {
@@ -57,7 +57,7 @@ public:
 - **基本保证 vs 强保证**：基本，对象还能用，但值可能已经变了；强，值也没变，像操作没发生过。
 - **不抛保证 vs `noexcept`**：保证是对行为的承诺，`noexcept` 是语言里声明它的方式；声明了却抛出，不会回滚，而是调用 `std::terminate`。
 
-**不变量**的定义见 [RAII-draft.md](../03-memory-resource/RAII-draft.md) 的"类不变量"一节：对象处于稳定状态时必须成立的规则，函数执行中间可以暂时打破。**有效状态**就是不变量成立的状态，它不等于"值是你想要的"。
+**不变量**的定义见 [RAII.md](../03-memory-resource/RAII.md) 的"类不变量"一节：对象处于稳定状态时必须成立的规则，函数执行中间可以暂时打破。**有效状态**就是不变量成立的状态，它不等于"值是你想要的"。
 
 **栈展开**（stack unwinding）：异常从 `throw` 传向 handler 的途中，沿调用链往外退，每退出一个作用域，就按构造完成的相反顺序，析构该作用域里已经构造完成的自动对象。它只调用析构，不撤销已经做过的修改。没有任何 handler 接住异常时，是否展开由实现定义。
 
@@ -106,7 +106,7 @@ void swap(SwapProfile& o) noexcept { name.swap(o.name); items.swap(o.items); }
 
 对照编译器生成的复制赋值：它按声明顺序逐个成员赋值，不会自动提供跨成员的回滚，整体的保证取决于成员的类型和类的不变量。Example 3 里 `name` 先被赋值，之后 `items` 的元素拷贝抛出，目标半新半旧。这两个成员之间没有共同的不变量，所以只是基本保证；如果有，连基本保证都可能丢。copy-and-swap 的失败发生在副本构造里，原对象一点没动。它的代价是总要多做一次完整拷贝（目标容量够用时也一样），所以用在需要强保证、又是整体替换状态的地方；`operator=` 的完整写法（含按值形式）留给拷贝与移动，见 [copy-and-move-draft.md](../03-memory-resource/copy-and-move-draft.md)。
 
-强保证也不止这一种做法。事务式回滚是另一条路：先改，同时记下撤销动作，失败时由守卫对象的析构去执行（见 [RAII-draft.md](../03-memory-resource/RAII-draft.md) 的"Destructors must not throw"一节："析构只做回滚"）。它同样要求撤销动作本身不能失败。
+强保证也不止这一种做法。事务式回滚是另一条路：先改，同时记下撤销动作，失败时由守卫对象的析构去执行（见 [RAII.md](../03-memory-resource/RAII.md) 的"Destructors must not throw"一节："析构只做回滚"）。它同样要求撤销动作本身不能失败。
 
 ### iv. Nothrow operations and `noexcept`
 
@@ -114,7 +114,7 @@ void swap(SwapProfile& o) noexcept { name.swap(o.name); items.swap(o.items); }
 
 适合充当提交步骤的操作，通常应当做到不抛：
 
-- 析构函数（见 [RAII-draft.md](../03-memory-resource/RAII-draft.md) 的"Destructors must not throw"一节）和 `operator delete` 这类释放函数；
+- 析构函数（见 [RAII.md](../03-memory-resource/RAII.md) 的"Destructors must not throw"一节）和 `operator delete` 这类释放函数；
 - `swap`：使用默认分配器时，`std::string::swap` 和 `std::vector::swap` 都是 `noexcept`（Example 3 用 `static_assert` 验证）。自己的类要做 copy-and-swap，`swap` 就由这些不抛的成员 `swap` 组成；
 - 移动操作：能做到不抛才声明 `noexcept`（Core Guidelines C.66），不要为了让容器选择移动而虚报。做不到就如实不声明，容器会据此选择策略，见下。
 
@@ -140,7 +140,7 @@ void swap(SwapProfile& o) noexcept { name.swap(o.name); items.swap(o.items); }
 
 ### ii. Connection
 
-- [RAII](../03-memory-resource/RAII-draft.md)：栈展开时 RAII 保证资源被释放，是基本保证的前一半。构造失败只销毁已构造的子对象、析构不能让异常逃出，是它给异常安全打的底。
+- [RAII](../03-memory-resource/RAII.md)：栈展开时 RAII 保证资源被释放，是基本保证的前一半。构造失败只销毁已构造的子对象、析构不能让异常逃出，是它给异常安全打的底。
 - [copy-and-move-draft.md](../03-memory-resource/copy-and-move-draft.md)：`noexcept` 的移动让 `vector` 扩容既能用移动，又不丢强保证；copy-and-swap 的完整写法放在这里。
 - [new-delete](../03-memory-resource/new-delete.md)：构造抛出时 new 表达式调用配对的 `operator delete`，是"不泄漏"在 new 表达式上的体现。
 

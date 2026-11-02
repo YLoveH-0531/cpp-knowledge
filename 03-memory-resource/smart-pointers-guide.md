@@ -4,13 +4,13 @@
 
 ## 在主线上的位置
 
-[RAII 笔记](RAII_summary.md) → [① 构造](../02-class-object-oop/lifetime-and-initialization-guide.md) → [② 移动](copy-and-move-guide.md) → **③ 智能指针（本篇）** → [④ 异常安全](../07-language-mechanics/exception-safety-guide.md)
+[RAII 笔记](RAII.md) → [① 构造](../02-class-object-oop/lifetime-and-initialization-guide.md) → [② 移动](copy-and-move-guide.md) → **③ 智能指针（本篇）** → [④ 异常安全](../07-language-mechanics/exception-safety-guide.md)
 
 ### 承接：三个旋钮，三种所有权策略
 
 上一篇 [② 移动](copy-and-move-guide.md)留下的是三个旋钮：拷贝做什么、移动做什么、要不要删掉。旋钮设成不同的值，就是不同的所有权策略。你的 [Unique_ptr.h](../../My_PPP/chapter19/include/exer/Unique_ptr.h) 是其中一种：删拷贝、留移动。标准库给了三个现成的答案，本篇要把它们摆在一张表里比较。
 
-[RAII 笔记](RAII_summary.md)的 How v 已经列出 `unique_ptr`（独占，只能移动）和 `shared_ptr`（共享，引用计数），还给了 `unique_ptr<FILE, Closer>` 这个自定义删除器的例子；How v 的末尾和 Relation 的 See also 都把细节指向了智能指针这一篇。本篇展开那两行，并补上第三种：不拥有的 `weak_ptr`。
+[RAII 笔记](RAII.md)的 How v 已经列出 `unique_ptr`（独占，只能移动）和 `shared_ptr`（共享，引用计数），还给了 `unique_ptr<FILE, Closer>` 这个自定义删除器的例子；How v 的末尾和 Relation 的 See also 都把细节指向了智能指针这一篇。本篇展开那两行，并补上第三种：不拥有的 `weak_ptr`。
 
 ### 引出：智能指针管"持有"，管不了"中途失败"
 
