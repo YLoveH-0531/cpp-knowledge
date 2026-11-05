@@ -19,4 +19,17 @@
 
 
 3.some concepts
-a declaration 
+1).declatation:
+name, 用于指代实体的名称
+entity, C++ 程序中被识别和描述的事物，例如对象、函数、类型、模板、命名空间等
+declaration, Declarations are how names and/or entities are introduced (or re-introduced) into the C++ program。对于引入名字的声明，它会规定该名字的解释及相关语义属性，使名字能够指代相应实体。声明可以是实体的首次声明，也可以是对已有实体的重新声明；其中一部分声明同时也是定义
+defination, A definition is a declaration that provides a complete definition for the introduced entity。其数量和一致性受到 ODR 约束
+
+defination,
+Note that the C++ standard distinguishes between declaration (a syntactic construct) and declaration (a C++ term). A declaration(C++ term) can be not only a declaration but also a class specifier(syntactic construct), an enum specifier, a function parameter, and so on. 
+
+Simple declaration
+decl-specifier-seq init-declarator-list(declarator initializer)
+
+2). strorage class specifiers
+object, Entity 的一种，具有类型、存储期、生命周期等属性，并占据一块存储区域
