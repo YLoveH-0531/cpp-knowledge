@@ -128,3 +128,68 @@ The lifetime of an object ends   :  if it is of a non-class type, the object is 
 reference:
 The lifetime of an object begins :  its initialization is complete                               
 The lifetime of an object ends   :  as if it were a scalar object
+
+### 6) scope
+### ① 结构：作用域是一棵嵌套的树
+
+- 整个程序有一个根：global scope。
+- 其他作用域由声明、参数、语句、handler 引入
+- 每个作用域都出现在另一个作用域中，后者包含前者。
+- Parent scope 是包含该作用域的最小外层作用域。
+
+```
+global
+ └── S       parent(S) = global
+      └── T  parent(T) = S
+```
+
+### ② 定位：站在某个程序点上看
+
+- Enclosing scope：包含该程序点的所有作用域。
+- Immediate scope：包含该程序点的最小作用域，即最内层作用域。
+
+例如，程序点 Y 位于 T 中：
+
+```
+global
+ └── S
+      └── T
+           Y
+```
+
+那么：
+
+- Enclosing scopes：`{T, S, global}`。
+- Immediate scope：`T`。
+
+### ③ 归属：声明落到哪个作用域
+
+1. Locus：声明在程序中对应的标准规定位置。例如 `int x = 10;`，其 locus 在 `x` 之后、初始化器之前。
+2. Inhabit：默认情况下，声明 inhabits 其 locus 所在程序点的 immediate scope。
+3. Target scope：默认情况下，声明的 target scope 就是它 inhabits 的作用域。
+
+例如：
+
+```
+{
+    {
+        int y;
+    }
+}
+```
+
+`int y;` 的 locus 位于 T 中，因此默认：
+
+```
+Immediate scope = T
+Inhabited scope = T
+Target scope = T
+```
+
+注意：以上 target scope 与 inhabited scope 相等，是默认规则，并非无例外。
+
+### ④ 绑定：名字和实体
+
+- Bound：声明引入的名称，默认在 target scope 中绑定到该声明. 
+- Belongs to：如果实体某条声明的 target scope 是 S，那么该实体属于 S。这里的「属于」是语言层面的作用域归属，与对象的内存位置、存储期和生命周期无关。
+二者共同就决定了C++中名字可见性与实体归属的根基：一个声明在什么范围内"生效"。既决定了能在哪里用这个名字，也决定了被声明的实体在语义上被归入哪个作用域。
