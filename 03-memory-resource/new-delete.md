@@ -102,15 +102,12 @@ void  operator delete[]( void* ptr, void* place ) noexcept;
 
 **Initialization forms:**
 
-```cpp
-new type                              // default-initialized
-new type ()                           // value-initialized
-new type (initializers)               // direct-initialized
-new type {}                           // list-initialized
-new type [size]                       // each element default-initialized
-new type [size] ()                    // each element value-initialized
-new type [size] { initializer list }  // aggregate-initialized
-```
+| new-initializer | Non-array | Array |
+|---|---|---|
+| omitted | `new type`: default-initialized | `new type [size]`: each element default-initialized |
+| `()` | `new type ()`: value-initialized | `new type [size] ()`: each element value-initialized |
+| `(expression-list)` | `new type (expression-list)`: direct-initialized | `new type [size] (expression-list)`: since C++20; the elements are initialized from the items of the list in order, the remaining elements are value-initialized |
+| `{...}` | `new type {}`: list-initialized | `new type [size] { initializer list }`: aggregate-initialized |
 
 **Array type alias:**
 
@@ -128,12 +125,7 @@ char *p = new char[0];           // legal, returns a valid non-null pointer, but
 
 #### 2. Placement new
 
-```cpp
-new (place_address) type                                   // default-initialized
-new (place_address) type (initializers)                    // direct-initialized
-new (place_address) type [size]                            // each element default-initialized
-new (place_address) type [size] { initializer list }       // aggregate-initialized
-```
+Placement new takes the same initialization forms as [1. Ordinary new](#1-ordinary-new) above: the placement arguments only change which allocation function is called (see ii. Expression semantics), not how the object is initialized.
 
 ### v. Related std lib
 
