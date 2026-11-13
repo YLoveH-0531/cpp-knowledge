@@ -251,8 +251,9 @@ Inhabited scope = T
 Target scope = T
 ```
 
-注意：以上 target scope 与 inhabited scope 相等，是默认规则（标准里写的是 "Unless otherwise specified"），并非无例外。现行草案 [basic.scope.scope]/2 的注列了特例，常见的有：
+注意：以上 target scope 与 inhabited scope 相等，是默认规则（标准里写的是 "Unless otherwise specified"），并非无例外。现行草案 [basic.scope.scope]/2 的注和 [dcl.meaning.general] 列了特例，常见的有：
 
+- 带限定名的声明，即在类外（或命名空间外）定义成员：`int C::count = 0;`、`void C::f() {}` 写在命名空间作用域里，inhabit 的是那个命名空间，target scope 却是它所对应的声明所在的作用域（类 `C`），所以实体属于 `C`（[dcl.meaning.general]/3）。
 - 块作用域里的 `extern` 声明和函数声明：target scope 是外层的命名空间作用域（实体属于该命名空间），名字却只绑定在所在的块里。例：`namespace X { void p() { extern int q; } }`，`q` 属于 `X`（目标文件里的符号是 `X::q`），但在 `p` 外面用 `q` 会报未声明（g++、clang 实测）。
 - 友元声明：不绑定名字，实体属于最内层的外围命名空间。所以 `friend void ff();` 之后，类外直接写 `ff()` 找不到，只有参数相关查找（ADL）能找到（实测）。
 - 无作用域枚举的枚举器：名字绑定在枚举和外层两处，`E::e1`（C++11 起）和 `e1` 都能用；`enum class` 的只在枚举里。
