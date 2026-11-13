@@ -1,17 +1,18 @@
-# 非局部变量的初始化，与程序的内存分布、启动过程
+# 初始化，与程序的内存分布、启动过程
 
 > 整理于 2026-11-09，2026-11-11 重新整理。环境：Ubuntu 22.04（WSL2）、x86-64、g++ 11.4、glibc 2.35、binutils 2.38、gdb 12.1；C++ 标准以 C++20 为基线，版本差异单独写明。
 
 ## 1. 先看全貌
 
-### 四个问题
+### 五个问题
 
 | 问题 | 答案 | 在哪 |
 |---|---|---|
 | 初始化器怎么写，各算哪种初始化？ | 不写→默认，空 `()`→值，`= 表达式`→拷贝，`(实参)`→直接，`{ }`→列表 | §2.2 |
 | 分哪两个阶段？ | 先静态初始化，再动态初始化 | §2.3 |
-| 多个变量谁先谁后？ | 按变量种类分三档 | §2.3.1 |
-| 何时初始化？ | 静态存储期的通常在 `main` 之前；标准允许提前（当作静态初始化来做）或推迟（到 `main` 之后），推迟的期限由 ODR-use 定。线程存储期的每个线程各一次，时机见 §2.3.2 | §2.3.2、§2.3.3 |
+| 多个非局部变量谁先谁后？ | 按变量种类分三档 | §2.3.1 |
+| 非局部变量何时初始化？ | 静态存储期的通常在 `main` 之前；标准允许提前（当作静态初始化来做）或推迟（到 `main` 之后），推迟的期限由 ODR-use 定。线程存储期的每个线程各一次，时机见 §2.3.2 | §2.3.2、§2.3.3 |
+| 静态局部变量（函数内的 `static`、`thread_local`）呢？ | 零初始化、常量初始化仍在静态阶段；动态初始化等执行流第一次经过声明才做。抛异常下次重试，多线程同时经过只初始化一次 | §2.4、§2.5 |
 
 ### 一条时间线
 
@@ -19,28 +20,30 @@
 装载程序 → 静态初始化 → 动态初始化（通常在 main 之前，标准允许推迟，§2.3.2） → main → 退出时析构 → 内核回收
 ```
 
-这是典型实现里**静态存储期**变量的顺序，其中动态初始化与 `main` 的先后不是语言保证的（§2.3.2）。线程存储期（`thread_local`）的变量不在这条线上：每个线程各自初始化（时机见 §2.3.2）、各自销毁（§4.3）。
+这是典型实现里**非局部的静态存储期**变量的顺序，其中动态初始化与 `main` 的先后不是语言保证的（§2.3.2）。线程存储期（`thread_local`）的非局部变量不在这条线上：每个线程各自初始化（时机见 §2.3.2）、各自销毁（§4.3）。静态局部变量也不在这条线上：它们的动态初始化要等执行流第一次经过声明（§2.4）。
 
 标准保证：**所有静态初始化，都先于任何动态初始化。**
 
-## 2. 语言层面：非局部变量怎么初始化
+## 2. 语言层面：初始化
 
 ### 2.1 讨论对象
 
-非局部变量：
+从 §2.3 起，讨论的是**静态存储期**或**线程存储期**（`thread_local`）的变量，按声明的位置分两类。
+
+**非局部变量**（§2.3）：
 
 - 命名空间作用域的变量（含全局变量）；
 - 类的静态数据成员。
 
 它们的存储期是**静态**的，或者是**线程**的（`thread_local`）。
 
-**函数内的 `static` 变量不在这一节**：它虽然是静态存储期，但是局部变量，见 §2.4。
+**函数内的变量**（§2.4）：函数等块作用域里加了 `static`（静态存储期）或 `thread_local`（线程存储期）的变量；不加的是自动存储期，不在讨论范围内。
 
-> 两个维度互相独立：**非局部**说的是变量写在哪，**静态/线程存储期**说的是变量活多久。
+> 两个维度互相独立：**非局部/局部**说的是变量写在哪，**静态/线程存储期**说的是变量活多久。
 
 ### 2.2 初始化器的写法与初始化种类
 
-初始化是对象创建时确定它初始状态的过程：按类型和写法，可能调用构造函数，也可能什么都不做（如局部的 `int x;`）。本节对所有变量通用，不限于非局部变量；从 §2.3 起才收窄到非局部变量。
+初始化是对象创建时确定它初始状态的过程：按类型和写法，可能调用构造函数，也可能什么都不做（如局部的 `int x;`）。本节对所有变量通用，不限于静态或线程存储期的变量；从 §2.3 起才收窄到它们（§2.1）。
 
 **初始化发生在哪**
 
@@ -132,7 +135,9 @@ int main() {
 
 - 全局的 `int b;` 是 0，**不是默认初始化给的**。按写法，它是默认初始化，而默认初始化对 `int` 什么也不做（[dcl.init]/7），没有运行期动作。这个 0 来自阶段那一边：`b` 是静态存储期的变量，又不满足常量初始化的条件（没有初始化器，默认初始化什么也不做），所以做零初始化（[basic.start.static]/2），它属于静态初始化、先于任何其他初始化（[dcl.init]/10 的注），没有动态初始化。典型实现里它只是 `.bss` 中一块全零内存，没有初始化代码（§3.3）。局部的 `int x;`（自动存储期）没有零初始化这一步，值不确定（[basic.indet]/1）。
 
-### 2.3 两个阶段
+### 2.3 非局部变量（Non-local variables）
+
+非局部变量（§2.1）的初始化分两个阶段，先静态初始化，再动态初始化。这两个阶段的定义对静态局部变量（§2.4）也一样，这里先以非局部变量讲清楚。
 
 **阶段 1：静态初始化**
 
@@ -157,6 +162,8 @@ int b;               // 零初始化
 int c = f();         // 先零初始化为 0，再动态初始化为 f()
 ```
 
+静态局部变量的动态初始化另有规则，见 §2.4。
+
 #### 2.3.1 谁先谁后：动态初始化的三档排序
 
 三档说的是**排序规则**，不是三种初始化操作。它们只针对**静态存储期**的非局部变量（[basic.start.dynamic]/1、/3 的原文就是这样限定的）。
@@ -178,7 +185,7 @@ A a;            // 构造函数里用了 b
 B b;
 ```
 
-`a` 和 `b` 在不同翻译单元，不能保证 `b` 先完成动态初始化，`a` 的构造函数可能读到只被零初始化、构造函数还没跑的 `b`。所以要避免跨翻译单元的全局对象互相依赖。
+`a` 和 `b` 在不同翻译单元，不能保证 `b` 先完成动态初始化，`a` 的构造函数可能读到只被零初始化、构造函数还没跑的 `b`。所以要避免跨翻译单元的全局对象互相依赖；常见的办法是改成静态局部变量（函数内的 `static`），用到时才构造（§2.4）。
 
 #### 2.3.2 何时初始化：默认、提前、推迟
 
@@ -318,18 +325,65 @@ inline void run() {}
 - 非 inline 变量的期限覆盖整个翻译单元，inline 变量只看它自己。
 - g++ 11.4 对非 inline 的静态存储期全局对象不推迟：构造都发生在 `main` 之前（实验 1、2、3）。所以本节的例子是标准允许的行为，在这台机器上观察不到推迟。
 
-### 2.4 两个边界：异常、函数内 static
+### 2.4 静态局部变量（Static local variables）
+
+函数里的变量（块作用域变量）默认是自动存储期（[basic.stc.auto]/1）。写 `static`，就是静态存储期（[basic.stc.static]/3）；写 `thread_local`，就是线程存储期，块作用域里单独写 `thread_local` 会隐含 `static`（[dcl.stc]/3）。本节的静态局部变量，指这两种（§2.1 的"函数内的变量"）；标准叫它们块作用域变量（block-scope variable，现行草案缩写成 block variable）。它们是局部变量，存储期却和 §2.3 的非局部变量一样是静态或线程的。拿它们和非局部变量比：
+
+- **静态初始化一样**：零初始化、常量初始化的规则同 §2.3 阶段 1（[basic.start.static]/2）；
+- **动态初始化不一样**：非局部变量归 [basic.start.dynamic]（§2.3.1–§2.3.3 的顺序、提前、推迟）；静态局部变量归 [stmt.dcl]/4，由执行流触发（[basic.start.static]/2 的注把这两条路分开了）。
+
+**规则**（[stmt.dcl]/4、/5，附录 B）
+
+| 情形 | 规则 |
+|---|---|
+| 零初始化、常量初始化 | 在静态初始化阶段就完成，早于第一次进入所在的块，运行期没有动作 |
+| 动态初始化 | 执行流**第一次经过它的声明**时才做；做完才算已初始化；之后再经过这个声明，直接跳过。实现也可以按 §2.3.2 的"提前"条件，把它提前成静态初始化 |
+| 初始化抛异常 | 异常照常向外传播；这次初始化不算完成，下次再经过声明时重试（与非局部变量的对比见 §2.5） |
+| 多个线程同时第一次经过声明（C++11 起） | 只初始化一次，其他线程等它完成 |
+| 初始化期间，递归地再次经过这个声明 | 未定义行为 |
+| 线程存储期（C++11 起） | 每个线程各有一个对象（[basic.stc.thread]/1），各自在本线程第一次经过声明时初始化；没经过声明的线程，既不构造也不析构 |
+| 析构 | 只有构造完成了才析构：静态存储期的在程序退出时，线程存储期的在线程退出时；静态对象之间按初始化完成的先后反过来（§4.3） |
+
+标 C++11 起的两行是按 cppreference 的版本标注写的；N3337（C++11）的 [stmt.dcl]/4 里已有这两条，C++03 原文我没有核对。
+
+```cpp
+void f() {
+    static int k = 10;    // 常量初始化：f 第一次被调用之前，k 已经是 10
+    static int d = g();   // 动态初始化：f 第一次执行到这一行才调用 g()，以后跳过
+}
+```
+
+- **常量初始化**：`static std::string s = "hello";` 能不能常量初始化，取决于标准库实现和字符串长度，别当规则记。C++20 标准已把 `std::basic_string` 的成员函数声明为 constexpr（特性宏 `__cpp_lib_constexpr_string` 在 [version.syn] 里是 201907L）；但本机 g++ 11.4 的 libstdc++ 11 里这个宏是 201811L，还没实现，所以它是动态初始化。换成 libstdc++ 12（clang 14 实际用的就是它，宏是 201907L）：`constinit std::string s = "hello";` 能编译，说明短串做成了常量初始化；超出小字符串缓冲区的长串（实测用了 51 个字符）不行（实测，附录 B 的 [version.syn]）。
+- **实测**（g++ 11.4、clang 14，`-std=c++20`，结果一致）：`g()` 在 `f()` 第一次被调用时才执行；构造抛异常后，下次调用重试（第三次才成功，析构只在退出时跑一次）；4 个线程同时第一次调用，构造只跑了 1 次，4 个线程读到的都是构造完成后的值；`thread_local` 在两个线程里各构造、各析构一次。递归经过声明是未定义行为，这两个编译器用的运行库（libstdc++）都是抛出 `__gnu_cxx::recursive_init_error` 后 `terminate`，这是实现的行为，标准不保证。
+- **实现**：需要动态初始化的变量带 guard 变量，常量初始化的没有，见 §3.3。
+- **`inline` 函数里的 `static`**：函数有外部链接时，不管它在多少个翻译单元里各被定义一次，里面的 `static` 变量全程序只有一个对象（[dcl.inline]/6 的注）。显式写 `inline` 的函数，和类里定义的成员函数（隐式 inline，[dcl.inline]/7 的注），都是这类；内部链接的（`static inline`）每个翻译单元有各自的函数，也就各有一份变量。实测（g++ 11.4、clang 14）：`inline` 函数、类里定义的成员函数里的 `static` 变量，在两个翻译单元里同址，`static inline` 函数里的不同址。
+
+**用途：绕开静态初始化顺序问题**
+
+§2.3.1 的问题出在跨翻译单元的全局对象没有顺序保证。静态局部变量的构造时间由调用决定，不靠翻译单元之间的排序，所以把 `b` 换成函数里的 `static`，谁用谁调用：
+
+```cpp
+// b.cpp
+B& get_b() { static B b; return b; }   // 第一次调用时才构造
+// a.cpp
+A a;    // 构造函数里用 get_b()，此时 b 一定已经构造完
+```
+
+实测（g++ 11.4、clang 14）：`B` 的构造函数把成员 `ready` 置 1，`A` 的构造函数读它。
+
+| `b` 的写法 | 链接顺序 `a.o b.o` | 链接顺序 `b.o a.o` |
+|---|---|---|
+| 全局变量（§2.3.1 的例子） | 读到 0：`b` 只被零初始化，构造函数还没跑 | 读到 1 |
+| 静态局部变量，经 `get_b()` 取 | 读到 1 | 读到 1 |
+
+全局变量那一行取决于链接器怎么排各翻译单元的初始化函数，标准不保证。
+
+### 2.5 异常
 
 | 变量 | 初始化抛异常的结果 |
 |---|---|
 | 非局部变量（静态或线程存储期） | 调用 `std::terminate`，无法在外面 catch（[basic.start.dynamic]/8） |
-| 函数内 `static` | 异常正常传播；这次初始化不算完成，下次执行到声明时重试（[stmt.dcl]/3） |
-
-函数内 `static` 的时机也不同：
-
-- 常量初始化的（`static int s = 10;`）：在静态初始化阶段就完成了。
-- 需要动态初始化的：第一次执行到声明时才初始化，编译器用 guard 变量保证只初始化一次（实测有符号 `guard variable for fn()::s_dyn`，8 字节，在 `.bss`）。
-- `static std::string s = "hello";` 能不能常量初始化，取决于标准库实现和字符串长度，别当规则记。C++20 标准已把 `std::basic_string` 的成员函数声明为 constexpr（特性宏 `__cpp_lib_constexpr_string` 在 [version.syn] 里是 201907L）；但本机 g++ 11.4 的 libstdc++ 11 里这个宏是 201811L，还没实现，所以它是动态初始化。换成 libstdc++ 12（clang 14 实际用的就是它，宏是 201907L）：`constinit std::string s = "hello";` 能编译，说明短串做成了常量初始化；超出小字符串缓冲区的长串（实测用了 51 个字符）不行（实测，附录 B 的 [version.syn]）。
+| 静态局部变量 | 异常正常传播；这次初始化不算完成，下次执行到声明时重试（[stmt.dcl]/4） |
 
 ## 3. 实现层面：Linux 可执行文件与内存布局
 
@@ -398,6 +452,7 @@ inline void run() {}
 
 另外：
 
+- **静态局部变量的动态初始化不走 `.init_array`**，初始化代码就在函数体里（语言规则见 §2.4）：每个需要动态初始化的变量配一个 guard 变量（8 字节，在 `.bss`，实验 1），常量初始化的没有。g++ 11.4 x86-64、`-O0` 的汇编：先读 guard 的首字节，非 0 就跳过；为 0 则调 `__cxa_guard_acquire`（别的线程在这里等），构造对象，`__cxa_atexit` 登记析构，`__cxa_guard_release` 置标志；构造抛异常则调 `__cxa_guard_abort`，标志仍是 0，所以下次重试。已初始化之后每次经过，开销只是一次普通的首字节读取和判断。
 - **需要在退出时析构的静态存储期对象（含函数内 static），构造完成后立刻用 `__cxa_atexit` 登记析构函数**，退出时按登记的逆序调用。这是"反序析构"和"只有构造完成的才析构"的来源。析构函数平凡的（如 `int g = f();`）没有析构要做，不登记（Itanium ABI 的条件是 "that will require destruction on exit"，g++ 11.4 实测一致）。`thread_local` 对象另用 `__cxa_thread_atexit`，在线程退出时调用。
 - **PIE 构建里**，`.init_array` 每个槽都有一条 `R_X86_64_RELATIVE` 重定位，装载时由动态链接器加上基址；`.data` 里含地址的初值（如 `int* p = &x;`）同理。所以"静态初始化"不只是映射，装载时还要做重定位（实验 2）。
 - **`.tdata`/`.tbss` 只是模板**：可执行文件里只有一份，每个线程启动时由运行库拷贝出自己的 TLS 块，活的对象在那块里。
@@ -413,7 +468,7 @@ inline void run() {}
 | 1 加载 | 内核（`execve`） | 按 `PT_LOAD` 映射各段；`.bss` 置零；建栈，放 `argv` 和环境变量；动态链接的程序还会加载 `ld.so` | |
 | 2 动态链接 | `ld.so` | 把 `libc.so` 等映射进来，做符号解析和重定位 | 典型实现下，**静态初始化需要的数据到此就位**：常量初始化的值在 `.data`/`.rodata`，零初始化的在全零的 `.bss`，重定位也做完了。这是实现静态初始化的方式，不是语言规定的一个阶段 |
 | 3 启动代码 | `_start` → `__libc_start_main` | 初始化 libc；`call_init` 遍历 `.init_array` | **动态初始化**：全局对象的构造函数在这里执行 |
-| 4 `main` | 用户代码 | 栈上的局部变量、`new` 的对象、函数内 `static`、线程和 `thread_local` 各按自己的规则 | 函数内 `static` 第一次经过声明时初始化 |
+| 4 `main` | 用户代码 | 栈上的局部变量、`new` 的对象、函数内 `static`、线程和 `thread_local` 各按自己的规则 | 函数内 `static` 第一次经过声明时初始化（§2.4） |
 | 5 退出 | 运行库 | 见 §4.3 | |
 | 6 回收 | 内核 | 回收整个地址空间，包括没 `delete` 的堆内存 | |
 
@@ -467,29 +522,34 @@ int main() { func(); }
 ## 5. 知识地图与掌握程度
 
 ```text
-非局部变量初始化
-├─ 对象：命名空间作用域变量、类的静态数据成员（静态 / 线程存储期）
+初始化
+├─ 对象：静态 / 线程存储期的变量：非局部的（命名空间作用域变量、类的静态数据成员）、静态局部变量（函数内的 static、thread_local）
 ├─ 初始化器的写法 → 种类（所有变量通用，与下面的"阶段"互相独立）
 │   ├─ 不写→默认；空 ()→值；= 表达式→拷贝；(实参)→直接；{ }→列表
 │   ├─ 默认：类→默认构造函数；数组→逐元素；其他→什么也不做
 │   ├─ 值：标量→零初始化；类→看默认构造函数是否 user-provided；数组→逐元素
 │   └─ 零：没有写法，由值初始化、以及"静态/线程存储期没做常量初始化"触发
-├─ 怎么初始化
-│   ├─ 静态初始化（先）：满足 constant-initialized 就常量初始化，否则零初始化
-│   └─ 动态初始化（后）：其余的，通常需要运行代码
-├─ 谁先谁后（静态存储期变量的动态初始化）
-│   ├─ 有序：同一翻译单元按定义顺序，跨翻译单元不确定（没提前启动线程时）
-│   ├─ 部分有序（C++17）：inline 变量，满足定义顺序条件时有保证
-│   ├─ 无序：模板实例化变量
-│   └─ thread_local：标准没给三档分类，只规定时机
-├─ 何时初始化
-│   ├─ 默认：main 之前 / 线程启动或首次使用
-│   ├─ Early：动态提前成静态
-│   └─ Deferred：推迟到 main 之后，最晚期限由首次非初始化 ODR-use 定
-│       ├─ 非 inline、静态存储期：同一翻译单元里任何非 inline 函数或变量的首次
-│       ├─ inline、静态存储期：它自己的首次
-│       └─ 非 inline、线程存储期：本线程对同一翻译单元里有动态初始化的 thread_local 变量的首次（CWG 2684）
-├─ 异常：非局部变量 → std::terminate；函数内 static → 传播、下次重试
+├─ 非局部变量（§2.3）
+│   ├─ 怎么初始化（静态局部变量同样适用）
+│   │   ├─ 静态初始化（先）：满足 constant-initialized 就常量初始化，否则零初始化
+│   │   └─ 动态初始化（后）：其余的，通常需要运行代码
+│   ├─ 谁先谁后（静态存储期变量的动态初始化）
+│   │   ├─ 有序：同一翻译单元按定义顺序，跨翻译单元不确定（没提前启动线程时）
+│   │   ├─ 部分有序（C++17）：inline 变量，满足定义顺序条件时有保证
+│   │   ├─ 无序：模板实例化变量
+│   │   └─ thread_local：标准没给三档分类，只规定时机
+│   └─ 何时初始化
+│       ├─ 默认：main 之前 / 线程启动或首次使用
+│       ├─ Early：动态提前成静态
+│       └─ Deferred：推迟到 main 之后，最晚期限由首次非初始化 ODR-use 定
+│           ├─ 非 inline、静态存储期：同一翻译单元里任何非 inline 函数或变量的首次
+│           ├─ inline、静态存储期：它自己的首次
+│           └─ 非 inline、线程存储期：本线程对同一翻译单元里有动态初始化的 thread_local 变量的首次（CWG 2684）
+├─ 静态局部变量（§2.4）
+│   ├─ 零、常量初始化在静态阶段；动态初始化等第一次经过声明（实现也可提前成静态）
+│   ├─ 多线程同时第一次经过：只初始化一次（C++11）；递归经过：未定义
+│   └─ thread_local：每个线程一份，各自第一次经过时初始化
+├─ 异常（§2.5）：非局部变量 → std::terminate；静态局部变量 → 传播、下次重试
 ├─ 落到可执行文件：.data / .bss / .init_array
 └─ 退出：主线程 thread_local → 静态对象与 atexit（逆序）
 ```
@@ -499,9 +559,10 @@ int main() { func(); }
 1. 静态初始化先于动态初始化；静态初始化是"常量初始化，否则零初始化"。
 2. 需要动态初始化的变量，先被零初始化，再动态初始化：标量先是 0，类类型逐个成员置零，引用不做任何事。
 3. 同一翻译单元按定义顺序，跨翻译单元不确定，由此产生静态初始化顺序问题。
-4. 非局部变量初始化抛异常会 `std::terminate`，函数内 `static` 不会。
+4. 非局部变量初始化抛异常会 `std::terminate`，静态局部变量不会。
 5. C++ 的存储期不等于物理位置，内存布局只是 Linux ELF 的典型实现。
 6. 初始化器的写法决定初始化的种类：不写→默认，空 `()`→值，`= 表达式`→拷贝，`(实参)`→直接，`{ }`→列表；它和静态/动态初始化是两个独立的维度：同样是默认初始化，全局 `int b;` 只有零初始化（0 是零初始化给的，默认初始化什么也没做），构造函数不是 `constexpr` 的类还要在动态阶段调用它，构造函数是 `constexpr` 的类是常量初始化。
+7. 静态局部变量（函数内的 `static`、`thread_local`）：零初始化、常量初始化仍在静态阶段，动态初始化等执行流第一次经过声明；抛异常下次重试，多线程同时经过只初始化一次，递归经过是未定义行为。
 
 **理解规则即可，不必背措辞**
 
@@ -511,6 +572,7 @@ int main() { func(); }
 4. 节与段的区别，`.data`/`.bss` 按值分。
 5. ODR-use 的典型情形（读、改、取地址、绑定引用、调用），以及它在推迟初始化里充当"最晚期限"。
 6. 默认、值、零三种初始化各做什么；值初始化对类类型，看默认构造函数是否 user-provided。
+7. 用静态局部变量绕开静态初始化顺序问题的写法；`inline` 函数里的静态局部变量全程序只有一份。
 
 **知道有这回事即可**
 
@@ -861,13 +923,18 @@ main end
 
 ## 附录 B：标准与规范原文摘录（核对用，均为短摘）
 
-标准条文取自 C++ 工作草案（eel.is/c++draft）和旧版草案（timsong-cpp.github.io/cppwp），ELF 部分取自 gABI 与 `elf(5)`。ODR-use、推迟初始化与初始化器写法的条文（11-11 增补），用 cplusplus/draft 仓库的 n3337（C++11）、n4140（C++14）、n4659（C++17）、n4861（C++20）几个标签核对过，段号按 N4861。
+标准条文取自 C++ 工作草案（eel.is/c++draft）和旧版草案（timsong-cpp.github.io/cppwp），ELF 部分取自 gABI 与 `elf(5)`。ODR-use、推迟初始化与初始化器写法的条文（11-11 增补），函数内 `static` 的条文（11-13 增补），用 cplusplus/draft 仓库的 n3337（C++11）、n4140（C++14）、n4659（C++17）、n4861（C++20）几个标签核对过，段号按 N4861。
 
 来源链接：N3337（C++11）<https://github.com/cplusplus/draft/tree/n3337>、N4140（C++14）<https://github.com/cplusplus/draft/tree/n4140>、N4659（C++17）<https://github.com/cplusplus/draft/tree/n4659>、N4861（C++20）<https://github.com/cplusplus/draft/tree/n4861>、现行草案 <https://eel.is/c++draft/>（源文件 <https://github.com/cplusplus/draft/tree/main>）、CWG 2684 <https://cplusplus.github.io/CWG/issues/2684.html>。下面各条里，没特别标注的都是 N4861 原文；现行草案措辞和缺陷报告单独标明。
 
 - **[support.start.term]（`std::exit` 的 Effects）**："First, objects with thread storage duration and associated with the current thread are destroyed. Next, objects with static storage duration are destroyed and functions registered by calling atexit are called. … (Objects with automatic storage duration are not destroyed as a result of calling exit().)"
 - **[basic.start.term]/1、/2、/3、/5**（节选）：/1 "Constructed objects with static storage duration are destroyed and functions registered with std::atexit are called as part of a call to std::exit."；/2 "The destruction of all constructed objects with thread storage duration within that thread strongly happens before destroying any object with static storage duration."；/3 "If the completion of the constructor or dynamic initialization of an object with static storage duration strongly happens before that of another, the completion of the destructor of the second is sequenced before the initiation of the destructor of the first."；/5（与 `atexit` 的交错）"If the completion of the initialization of an object with static storage duration strongly happens before a call to std::atexit, the call to the function passed to std::atexit is sequenced before the call to the destructor for the object. If a call to std::atexit strongly happens before the completion of the initialization of an object with static storage duration, the call to the destructor for the object is sequenced before the call to the function passed to std::atexit. If a call to std::atexit strongly happens before another call to std::atexit, the call to the function passed to the second std::atexit call is sequenced before the call to the function passed to the first std::atexit call."
-- **[stmt.dcl]/3**："Dynamic initialization of a block variable with static storage duration or thread storage duration is performed the first time control passes through its declaration; … If the initialization exits by throwing an exception, the initialization is not complete, so it will be tried again the next time control enters the declaration."
+- **[stmt.dcl]/4、/5**（函数内的 `static`、`thread_local`；现行草案里是 /3、/4：goto 那一段并入 /2 后前移了一位，措辞里的 block-scope variable 也改成了 block variable）：/4 "Dynamic initialization of a block-scope variable with static storage duration or thread storage duration is performed the first time control passes through its declaration; such a variable is considered initialized upon the completion of its initialization. If the initialization exits by throwing an exception, the initialization is not complete, so it will be tried again the next time control enters the declaration. If control enters the declaration concurrently while the variable is being initialized, the concurrent execution shall wait for completion of the initialization. If control re-enters the declaration recursively while the variable is being initialized, the behavior is undefined."；/5 "A block-scope object with static or thread storage duration will be destroyed if and only if it was constructed."（后面的注指向 [basic.start.term]，销毁的先后在那里规定。）
+- **函数内变量的存储期与静态初始化**：[basic.stc.auto]/1 "Block-scope variables not explicitly declared static, thread_local, or extern have automatic storage duration."；[basic.stc.static]/3 "The keyword static can be used to declare a local variable with static storage duration."；[dcl.stc]/3 "When thread_local is applied to a variable of block scope the storage-class-specifier static is implied if no other storage-class-specifier appears in the decl-specifier-seq."；[basic.stc.thread]/1 "All variables declared with the thread_local keyword have thread storage duration. … There is a distinct object or reference per thread, and use of the declared name refers to the entity associated with the current thread."；[basic.start.static]/2 的注 "The dynamic initialization of non-local variables is described in [basic.start.dynamic]; that of local static variables is described in [stmt.dcl]."（现行草案写作 non-block variables 与 static block variables。）
+- **[dcl.inline]/6、/7 的注**（`inline` 函数里的 `static`）：/6 "An inline function or variable with external or module linkage has the same address in all translation units. A static local variable in an inline function with external or module linkage always refers to the same object. …"；/7 "A constexpr function is implicitly inline. In the global module, a function defined within a class definition is implicitly inline."（现行草案把 /6 那句改写后放进 [dcl.inline]/2 的注："An inline function or variable with external or module linkage can be defined in multiple translation units, but is one entity with one address. A type or static variable defined in the body of such a function is therefore a single entity."）
+- **函数内 static 初始化的措辞演变**：
+  - C++11（N3337 [stmt.dcl]/4）和 C++14（N4140 /4）：同一段里还写着 "The zero-initialization of all block-scope variables with static storage duration or thread storage duration is performed before any other initialization takes place. Constant initialization of a block-scope entity with static storage duration, if applicable, is performed before its block is first entered. An implementation is permitted to perform early initialization of other block-scope variables with static or thread storage duration under the same conditions that an implementation is permitted to statically initialize a variable with static or thread storage duration in namespace scope. Otherwise such a variable is initialized the first time control passes through its declaration; …"，后面是同样的异常重试、并发等待（脚注 "The implementation must not introduce any deadlock around execution of the initializer."）和递归未定义。
+  - C++17（N4659 [stmt.dcl]/4）起：前面几句并入 [basic.start.static]，[stmt.dcl]/4 从 "Dynamic initialization of a block-scope variable …" 写起，与 N4861 相同。
 - **[dcl.init]/1**（初始化器的适用范围与文法）："The process of initialization described in this subclause applies to all initializations regardless of syntactic context, including the initialization of a function parameter, the initialization of a return value, or when an initializer follows a declarator." 文法：`initializer: brace-or-equal-initializer | ( expression-list )`；`brace-or-equal-initializer: = initializer-clause | braced-init-list`；`initializer-clause: assignment-expression | braced-init-list`；`braced-init-list: { initializer-list ,opt } | { designated-initializer-list ,opt } | { }`；`expression-list: initializer-list`（在 [expr.post]）。
 - **[dcl.init]/6**（零初始化）："To zero-initialize an object or reference of type T means: if T is a scalar type, the object is initialized to the value obtained by converting the integer literal 0 (zero) to T; if T is a (possibly cv-qualified) non-union class type, its padding bits are initialized to zero bits and each non-static data member, each non-virtual base class subobject, and, if the object is not a base class subobject, each virtual base class subobject is zero-initialized; … if T is an array type, each element is zero-initialized; if T is a reference type, no initialization is performed."（联合体一条从略。）
 - **[dcl.init]/7**（默认初始化）：类类型调用默认构造函数；数组逐元素；"Otherwise, no initialization is performed."
