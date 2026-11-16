@@ -70,7 +70,7 @@ int read()        { return A::value; }   // 只取值：不是 ODR-use，目标�
 const int& bind() { return A::value; }   // 绑定引用：ODR-use，nm 里出现 U A::value，需要类外定义
 ```
 
-（g++ 11.4、clang 14，`-O0` 实测。ODR-use 在推迟初始化里的用法见 [process-memory-layout-and-startup-review.md](../02-class-object-oop/process-memory-layout-and-startup-review.md) §2.3.3，静态数据成员的定义见 [static.md](static.md)。）
+（g++ 11.4、clang 14，`-O0` 实测。ODR-use 在推迟初始化里的用法见 [process-memory-layout-and-startup-review.md](../02-class-object-oop/01-object-foundation/process-memory-layout-and-startup-review.md) §2.3.3，静态数据成员的定义见 [static-data-members.md](../02-class-object-oop/02-class-and-oop/static-data-members.md)。）
 
 ### iii. 规则 3：重复的定义必须相同
 
@@ -112,7 +112,7 @@ namespace { int helper() { return 20; } }   // 另一个 helper
 | 违反 | 标准怎么说 | 通常看到 |
 |---|---|---|
 | 规则 1 | 必须诊断 | 编译错误 |
-| 规则 2 | ill-formed，无需诊断 | 链接报 undefined reference 或 multiple definition；`-O2` 下常量被折叠时可能什么都不报（见 [static.md](static.md)） |
+| 规则 2 | ill-formed，无需诊断 | 链接报 undefined reference 或 multiple definition；`-O2` 下常量被折叠时可能什么都不报（见 [static-data-members.md](../02-class-object-oop/02-class-and-oop/static-data-members.md)） |
 | 规则 3 | C++11 到 C++17：行为未定义。C++20 起：ill-formed，无需诊断（CWG 2300；附属于命名模块的实体除外） | 编译、链接都通过；结果取决于链接器留了哪份、编译器内联了哪份（见 Example） |
 
 “无需诊断”不等于没事：标准规定，违反了一条无需诊断的规则，标准对实现处理这个程序**不再有任何要求**。所以规则 3 的措辞从“未定义行为”改成 ill-formed，并没有变轻。
@@ -147,9 +147,9 @@ namespace { int helper() { return 20; } }   // 另一个 helper
 
 **See also:**
 
-- [lifetime-and-initialization.md](../02-class-object-oop/lifetime-and-initialization.md)：“some concepts”里的 declaration、definition 和 Linkage。
-- [process-memory-layout-and-startup-review.md](../02-class-object-oop/process-memory-layout-and-startup-review.md)：ODR-use 在推迟初始化里怎么用（§2.3.3）。
-- [static.md](static.md)：类的静态数据成员的定义，`inline static`。
+- [lifetime-and-initialization.md](../02-class-object-oop/01-object-foundation/lifetime-and-initialization.md)：“some concepts”里的 declaration、definition 和 Linkage。
+- [process-memory-layout-and-startup-review.md](../02-class-object-oop/01-object-foundation/process-memory-layout-and-startup-review.md)：ODR-use 在推迟初始化里怎么用（§2.3.3）。
+- [static-data-members.md](../02-class-object-oop/02-class-and-oop/static-data-members.md)：类的静态数据成员的定义，`inline static`。
 
 ## Example
 

@@ -107,7 +107,7 @@ Verifies:
 - [ ] **Verify:** the Example was compiled and run, the real output is pasted, and every Verifies line matches a claim in the note.
 - [ ] **Format:** no markdownlint findings, for example `npx markdownlint-cli2 "NN-folder/topic.md"` with MD013 off.
 
-Companions (optional): once a note is stable, add `topic-checklist.md` and `topic-quiz.md`, aligned section by section with the note, as for array.
+Companion (optional): once a note is stable, add `topic-quiz.md`, a closed-book self-test with folded answers, aligned section by section with the note, as for array.
 
 ## Sources
 
