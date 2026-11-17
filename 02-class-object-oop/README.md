@@ -14,12 +14,12 @@
 
 | 层 | 问题 | 概念 | 笔记 |
 |---|---|---|---|
-| 名字（编译、链接期） | Q1 这个名字在哪里看得见？ | 作用域 | [lifetime-and-initialization.md](01-object-foundation/lifetime-and-initialization.md) §3.6 |
-| | Q2 别的 .cpp 里的同名，是同一个实体吗？ | 链接、ODR | [odr.md](../07-language-mechanics/odr.md)；[lifetime-and-initialization.md](01-object-foundation/lifetime-and-initialization.md) §3.4 |
-| 对象（运行期） | Q3 存储属于哪一类？对象何时存在？ | 存储期、生命周期 | [lifetime-and-initialization.md](01-object-foundation/lifetime-and-initialization.md) §3.3、§3.5 |
-| | Q4 怎么初始化，谁先谁后？ | 初始化 | [lifetime-and-initialization.md](01-object-foundation/lifetime-and-initialization.md) §3.7；[initialization-forms.md](01-object-foundation/initialization-forms.md)；[process-memory-layout-and-startup-review.md](01-object-foundation/process-memory-layout-and-startup-review.md) §2 |
-| 实现（Linux） | Q5 落在可执行文件和进程的哪里？ | 节与段、栈和堆 | [process-memory-layout-and-startup-review.md](01-object-foundation/process-memory-layout-and-startup-review.md) §3 |
-| | Q6 从加载到退出，各在何时发生？ | 启动与退出 | [process-memory-layout-and-startup-review.md](01-object-foundation/process-memory-layout-and-startup-review.md) §4 |
+| 名字（编译、链接期） | Q1 这个名字在哪里看得见？ | 作用域 | [scope.md](../07-language-mechanics/scope.md) |
+| | Q2 别的 .cpp 里的同名，是同一个实体吗？ | 链接、ODR | [odr.md](../07-language-mechanics/odr.md)；[storage-class-specifiers-and-linkage.md](../07-language-mechanics/storage-class-specifiers-and-linkage.md) |
+| 对象（运行期） | Q3 存储属于哪一类？对象何时存在？ | 存储期、生命周期 | [storage-duration.md](01-object-foundation/storage-duration.md)；[lifetime.md](01-object-foundation/lifetime.md) |
+| | Q4 怎么初始化，谁先谁后？ | 初始化 | [01-initialization-basics.md](01-object-foundation/01-initialization/01-initialization-basics.md) §3.2；[02-initialization-forms.md](01-object-foundation/01-initialization/02-initialization-forms.md)；[03-static-initialization-and-program-startup.md](01-object-foundation/01-initialization/03-static-initialization-and-program-startup.md) §2 |
+| 实现（Linux） | Q5 落在可执行文件和进程的哪里？ | 节与段、栈和堆 | [03-static-initialization-and-program-startup.md](01-object-foundation/01-initialization/03-static-initialization-and-program-startup.md) §3 |
+| | Q6 从加载到退出，各在何时发生？ | 启动与退出 | [03-static-initialization-and-program-startup.md](01-object-foundation/01-initialization/03-static-initialization-and-program-startup.md) §4 |
 | 案例 | 类的静态数据成员，把 Q1–Q6 各走一遍 | | [static-data-members.md](02-class-and-oop/static-data-members.md) |
 
 与相邻主题的关系：
@@ -37,9 +37,15 @@
 
 | 主题 | 为什么存在 | 状态 |
 |---|---|---|
-| [lifetime-and-initialization.md](01-object-foundation/lifetime-and-initialization.md) | TODO | 笔记完成 |
-| [initialization-forms.md](01-object-foundation/initialization-forms.md) | TODO | 笔记完成 |
-| [process-memory-layout-and-startup-review.md](01-object-foundation/process-memory-layout-and-startup-review.md) | TODO | 笔记完成 |
+| [01-initialization-basics.md](01-object-foundation/01-initialization/01-initialization-basics.md) | TODO | 笔记完成 |
+| [02-initialization-forms.md](01-object-foundation/01-initialization/02-initialization-forms.md) | TODO | 笔记完成 |
+| [03-static-initialization-and-program-startup.md](01-object-foundation/01-initialization/03-static-initialization-and-program-startup.md) | TODO | 笔记完成 |
+| [object-and-reference.md](01-object-foundation/object-and-reference.md) | TODO | 笔记完成 |
+| [storage-duration.md](01-object-foundation/storage-duration.md) | TODO | 笔记完成 |
+| [lifetime.md](01-object-foundation/lifetime.md) | TODO | 笔记完成 |
+| [declaration-and-definition.md](../07-language-mechanics/declaration-and-definition.md) | TODO | 笔记完成 |
+| [storage-class-specifiers-and-linkage.md](../07-language-mechanics/storage-class-specifiers-and-linkage.md) | TODO | 笔记完成 |
+| [scope.md](../07-language-mechanics/scope.md) | TODO | 笔记完成 |
 | [odr.md](../07-language-mechanics/odr.md) | TODO | 笔记完成 |
 | [static-data-members.md](02-class-and-oop/static-data-members.md) | TODO | 笔记完成 |
 | 构造与析构、运算符重载、继承、虚函数 | TODO | 待写 |

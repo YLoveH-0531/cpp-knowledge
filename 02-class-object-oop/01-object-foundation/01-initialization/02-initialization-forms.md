@@ -1,6 +1,6 @@
-# Copy-initialization, List-initialization and explicit
+# Initialization Forms
 
-> 范围：只讲拷贝初始化、列表初始化和 `explicit` 怎样决定“选哪个构造函数、能不能选”。默认、值、零初始化见 [process-memory-layout-and-startup-review.md](process-memory-layout-and-startup-review.md) §2.2；聚合只讲它在列表初始化里的位置；拷贝省略只讲拷贝初始化用得上的部分，其余留给 [copy-and-move-draft.md](../../03-memory-resource/copy-and-move-draft.md)。引用的初始化、`auto` 推导、类模板实参推导不讲。
+> 范围：只讲拷贝初始化、列表初始化和 `explicit` 怎样决定“选哪个构造函数、能不能选”。默认、值、零初始化见 [01-initialization-basics.md](01-initialization-basics.md) §3.1；聚合只讲它在列表初始化里的位置；拷贝省略只讲拷贝初始化用得上的部分，其余留给 [copy-and-move-draft.md](../../../03-memory-resource/copy-and-move-draft.md)。引用的初始化、`auto` 推导、类模板实参推导不讲。
 
 ## Why
 
@@ -389,10 +389,10 @@ C++ Core Guidelines 把这些规则写成了建议：C.46 默认把单参数构�
 
 **See also:**
 
-- [lifetime-and-initialization.md](lifetime-and-initialization.md)：§3.7 构造函数与成员初始化列表（mem-initializer 是直接初始化）。
-- [process-memory-layout-and-startup-review.md](process-memory-layout-and-startup-review.md)：§2.2 初始化器的写法，以及默认、值、零初始化。
-- [new-delete.md](../../03-memory-resource/new-delete.md)：new-initializer 的 `()` 与 `{}`。
-- [copy-and-move-draft.md](../../03-memory-resource/copy-and-move-draft.md)：特殊成员函数；拷贝省略与移动的后续内容。
+- [01-initialization-basics.md](01-initialization-basics.md)：§3.1 默认、值、零初始化；§3.2 构造函数与成员初始化列表（mem-initializer 是直接初始化）。
+- [03-static-initialization-and-program-startup.md](03-static-initialization-and-program-startup.md)：§2.2 初始化形式与初始化阶段的区别。
+- [new-delete.md](../../../03-memory-resource/new-delete.md)：new-initializer 的 `()` 与 `{}`。
+- [copy-and-move-draft.md](../../../03-memory-resource/copy-and-move-draft.md)：特殊成员函数；拷贝省略与移动的后续内容。
 
 ## Example
 
@@ -685,7 +685,7 @@ int main()
 
 这里需要区分两个初始化过程：
 
-**第一处：函数返回对象的初始化**
+#### 第一处：函数返回对象的初始化
 
 ```cpp
 return s;
@@ -783,14 +783,14 @@ struct X
 
 看看四种情况：
 
-**① 定义变量**
+#### ① 定义变量
 
 ```cpp
 X x = 10;  // 错误：拷贝初始化，不能使用 explicit X(int)
 X y{10};   // 正确：直接列表初始化，可以使用 explicit X(int)
 ```
 
-**② 按值传递参数**
+#### ② 按值传递参数
 
 ```cpp
 void func(X x) {}
@@ -799,7 +799,7 @@ func(10);     // 错误：形参采用拷贝初始化
 func(X{10});  // 正确：先直接列表初始化出 X，再用它初始化形参
 ```
 
-**③ 按值返回对象**
+#### ③ 按值返回对象
 
 ```cpp
 X make()
@@ -815,7 +815,7 @@ X make2()
 
 这里 `return X{10}` 可以成立，是因为 C++17 起，同类型纯右值可以直接初始化函数返回结果对象，不需要调用拷贝或移动构造函数。
 
-**④ 初始化聚合类的成员**
+#### ④ 初始化聚合类的成员
 
 ```cpp
 struct Data

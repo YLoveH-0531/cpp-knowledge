@@ -70,7 +70,7 @@ int read()        { return A::value; }   // 只取值：不是 ODR-use，目标�
 const int& bind() { return A::value; }   // 绑定引用：ODR-use，nm 里出现 U A::value，需要类外定义
 ```
 
-（g++ 11.4、clang 14，`-O0` 实测。ODR-use 在推迟初始化里的用法见 [process-memory-layout-and-startup-review.md](../02-class-object-oop/01-object-foundation/process-memory-layout-and-startup-review.md) §2.3.3，静态数据成员的定义见 [static-data-members.md](../02-class-object-oop/02-class-and-oop/static-data-members.md)。）
+（g++ 11.4、clang 14，`-O0` 实测。ODR-use 在推迟初始化里的用法见 [03-static-initialization-and-program-startup.md](../02-class-object-oop/01-object-foundation/01-initialization/03-static-initialization-and-program-startup.md) §2.3.3，静态数据成员的定义见 [static-data-members.md](../02-class-object-oop/02-class-and-oop/static-data-members.md)。）
 
 ### iii. 规则 3：重复的定义必须相同
 
@@ -147,8 +147,9 @@ namespace { int helper() { return 20; } }   // 另一个 helper
 
 **See also:**
 
-- [lifetime-and-initialization.md](../02-class-object-oop/01-object-foundation/lifetime-and-initialization.md)：“some concepts”里的 declaration、definition 和 Linkage。
-- [process-memory-layout-and-startup-review.md](../02-class-object-oop/01-object-foundation/process-memory-layout-and-startup-review.md)：ODR-use 在推迟初始化里怎么用（§2.3.3）。
+- [declaration-and-definition.md](declaration-and-definition.md)：declaration、definition。
+- [storage-class-specifiers-and-linkage.md](storage-class-specifiers-and-linkage.md)：Linkage。
+- [03-static-initialization-and-program-startup.md](../02-class-object-oop/01-object-foundation/01-initialization/03-static-initialization-and-program-startup.md)：ODR-use 在推迟初始化里怎么用（§2.3.3）。
 - [static-data-members.md](../02-class-object-oop/02-class-and-oop/static-data-members.md)：类的静态数据成员的定义，`inline static`。
 
 ## Example

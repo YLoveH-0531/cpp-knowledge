@@ -67,7 +67,7 @@ double Account::rate = 0.04;      // 定义：整个程序只有这一处
 静态数据成员按**非局部变量**的规则初始化和销毁，不是第一次访问时才初始化（函数内的 `static` 才是）：
 
 1. 先做静态初始化，早于所有动态初始化：初始化器是常量表达式，就是常量初始化（上一节的类内常量属于这类，没有顺序问题）；定义里没写初始化器，就是零初始化，所以 `int Account::n;` 是 0，不像局部变量那样值不确定。
-2. 其余是动态初始化：在程序启动阶段完成（实现可以推迟，细节见 [process-memory-layout-and-startup-review.md](../01-object-foundation/process-memory-layout-and-startup-review.md) §2.3.2）。普通的非 inline 成员，同一翻译单元内按定义顺序，**跨翻译单元的顺序没有保证**；inline 成员是“部分有序”，类模板的静态成员是“无序”（见该文 §2.3.1 的三档）。
+2. 其余是动态初始化：在程序启动阶段完成（实现可以推迟，细节见 [03-static-initialization-and-program-startup.md](../01-object-foundation/01-initialization/03-static-initialization-and-program-startup.md) §2.3.2）。普通的非 inline 成员，同一翻译单元内按定义顺序，**跨翻译单元的顺序没有保证**；inline 成员是“部分有序”，类模板的静态成员是“无序”（见该文 §2.3.1 的三档）。
 3. 销毁：程序退出时，与初始化完成的顺序相反。
 
 ## Relation
@@ -94,12 +94,15 @@ double Account::rate = 0.04;      // 定义：整个程序只有这一处
 
 **See also:**
 
-- [lifetime-and-initialization.md](../01-object-foundation/lifetime-and-initialization.md)
-  - 「storage class specifiers」「Storage duration」「Linkage」三节：`static` 是存储类说明符，同一个关键字在不同位置起不同作用：给变量静态存储期；在命名空间作用域还给内部链接；在类里表示不属于对象，链接跟随类（[dcl.stc]/4）。Linkage 里的另一条可以对照：命名空间作用域的 `const` 变量默认是内部链接，头文件里的 `const int kMax = 100;` 每个翻译单元各有一份（实测地址不同），不会重复定义；类内的 `static const` 链接随类（外部），取地址就要有唯一的类外定义。
+- [storage-class-specifiers-and-linkage.md](../../07-language-mechanics/storage-class-specifiers-and-linkage.md)
+  - 「storage class specifiers」「Linkage」两节（存储期在 [storage-duration.md](../01-object-foundation/storage-duration.md)）：`static` 是存储类说明符，同一个关键字在不同位置起不同作用：给变量静态存储期；在命名空间作用域还给内部链接；在类里表示不属于对象，链接跟随类（[dcl.stc]/4）。Linkage 里的另一条可以对照：命名空间作用域的 `const` 变量默认是内部链接，头文件里的 `const int kMax = 100;` 每个翻译单元各有一份（实测地址不同），不会重复定义；类内的 `static const` 链接随类（外部），取地址就要有唯一的类外定义。
+- [declaration-and-definition.md](../../07-language-mechanics/declaration-and-definition.md)
   - 「declaration」一节说“一部分声明同时也是定义”：类内的非 inline 静态成员是“声明但不是定义”的典型（[basic.def]/2），C++17 的 inline 改的正是这一条。
+- [scope.md](../../07-language-mechanics/scope.md)
   - 「scope」一节的 ③、④：类外定义 `double Account::rate = 0.04;` 是“target scope 不一定等于 inhabited scope”的例子：它 inhabit 命名空间作用域，target scope 却是类 `Account`（[dcl.meaning.general]：带限定名的 declarator 取被限定的作用域；这套术语是现行草案的，N4861 里没有）。它属于类作用域，存储期却是静态的，正好印证 ④：“属于”与存储期无关。
+- [01-initialization-basics.md](../01-object-foundation/01-initialization/01-initialization-basics.md)
   - §1 和「类对象的初始化」一节：静态成员不是对象的子对象，不走构造函数和成员初始化列表（写进列表直接编译报错，g++、clang 实测）。示例里 `Account() { ++count; }` 是赋值，不是初始化；类内的 `inline static int w = 30;` 也不是默认成员初始化器：后者每个对象构造时执行，前者全程序只做一次。
-- [process-memory-layout-and-startup-review.md](../01-object-foundation/process-memory-layout-and-startup-review.md)
+- [03-static-initialization-and-program-startup.md](../01-object-foundation/01-initialization/03-static-initialization-and-program-startup.md)
   - §2.3.3：ODR-use 是同一条判据，用在两处：本篇用它判断要不要类外定义，这里用它定被推迟的动态初始化的最晚期限。`inline static` 成员是 §2.3.2 表里的 inline 变量，只看它自己的首次非初始化 ODR-use。
   - §2.3.1、§2.3：三档排序里，普通静态成员“有序”，`inline static`“部分有序”，类模板的静态成员“无序”；阶段 1 里，定义没写初始化器的静态成员是零初始化。
   - §2.4：Issues 里“跨翻译单元的初始化顺序”的解法是函数内 `static`（构造时间由调用决定）；C++17 之前想把变量的定义放进头文件，也是借 inline 函数里的 `static` 同一对象这一条。

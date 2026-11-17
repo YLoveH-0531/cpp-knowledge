@@ -19,7 +19,7 @@
 
 [new-delete 笔记](../03-memory-resource/new-delete.md)把"对象"和"存储"分成两件事：`new` 表达式 = 分配存储 + 初始化对象。本篇补上缺的另一半：存储从哪来、能活多久（**存储期**）；对象何时开始、何时结束（**生命周期**）；**初始化**怎样把一块存储变成一个对象。
 
-你已经在 [lifetime-and-initialization.md](01-object-foundation/lifetime-and-initialization.md)（原 temp.md）写下了这篇的起点：初始化是比"调用构造函数"更广的过程，基类和成员子对象在构造函数体执行之前完成初始化，整个对象在非委托构造函数返回时初始化完成。本篇要把这段话变成一张能查、能验证的模型。
+你已经在 [01-initialization-basics.md](01-object-foundation/01-initialization/01-initialization-basics.md)（原 temp.md）写下了这篇的起点：初始化是比"调用构造函数"更广的过程，基类和成员子对象在构造函数体执行之前完成初始化，整个对象在非委托构造函数返回时初始化完成。本篇要把这段话变成一张能查、能验证的模型。
 
 ### 这篇的整体模型：三个问题加一条时间线
 
@@ -86,7 +86,7 @@
 - 生命周期、存储期、作用域分别管什么？
 - 初始化和赋值有什么不同？
 
-起点是 [lifetime-and-initialization.md](01-object-foundation/lifetime-and-initialization.md) 里你已写的那几段。写不出来的地方，就是第二步要读的地方。
+起点是 [01-initialization-basics.md](01-object-foundation/01-initialization/01-initialization-basics.md) 里你已写的那几段。写不出来的地方，就是第二步要读的地方。
 
 产出：两小段话，加一串"不确定"的问题。
 
@@ -357,7 +357,7 @@ placement new 里"存储先于对象存在、晚于对象结束"，new-delete �
 
 | 位置 | 看哪里 | 对应的名词 | 看之前要知道 |
 |---|---|---|---|
-| [lifetime-and-initialization.md](01-object-foundation/lifetime-and-initialization.md) | 全文 | 初始化、赋值、生命周期、作用域 | 这是你第一步的成果，不是资料；写完初稿后，用第二步填好的表核对其中存储期、赋值两句 |
+| [01-initialization-basics.md](01-object-foundation/01-initialization/01-initialization-basics.md) | 全文 | 初始化、赋值、生命周期、作用域 | 这是你第一步的成果，不是资料；写完初稿后，用第二步填好的表核对其中存储期、赋值两句 |
 | [chapter18/README.md](../../My_PPP/chapter18/README.md) | 只看“列表初始化（List-initialization）判定顺序”一节 | 列表初始化、聚合、窄化、`initializer_list` 构造函数优先 | “聚合 ⟺ 没有用户声明的构造函数”只对 C++20 成立，C++11 到 C++17 里 `P() = default;` 的类仍是聚合 |
 | 同上 | 第 2 节 `initializer_list` 底层数组的寿命、第 4 节临时对象的销毁 | 临时对象、生命周期 | 可选；“内存段”那几段是实现细节，本篇不用 |
 | OneNote：C++ Primer 的 `Chapter 2` → `2.2 Variables` | 只看“Initialization is not assignment”和 Default / Value / List 的分类 | 初始化与赋值、默认 / 值 / 列表初始化 | 其中“Default initialization 归在 Direct 下”不对；“Value initialization MUST use the direct form”只适用于 `vector<int> v(10)` 这种只给大小的写法，不能当定义 |

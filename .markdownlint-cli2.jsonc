@@ -1,0 +1,8 @@
+{
+  "config": {
+    // Prose is one paragraph per line (99-misc/note-template.md, rule 8).
+    "MD013": false,
+    // Table delimiter rows are written |---|---|.
+    "MD060": false
+  }
+}
