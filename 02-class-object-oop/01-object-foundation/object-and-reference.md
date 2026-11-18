@@ -1,6 +1,6 @@
 # Object and Reference
 
-- **object**, 按 C++20 是 Entity 的一种，具有类型、存储期、生命周期等属性，并占据一块存储区域（构造期间、生命周期内、析构期间都占着）。对象可以有名字，也可以没有；函数不是对象。
+- **object**, 按 C++20 是 [Entity](../../07-language-mechanics/declaration-and-definition.md) 的一种，具有类型、存储期、生命周期等属性，并占据一块存储区域（构造期间、生命周期内、析构期间都占着）。对象可以有名字，也可以没有；函数不是对象。
 - **Reference**（引用）
 
   **Why** — 设计目的

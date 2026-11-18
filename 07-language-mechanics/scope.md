@@ -1,6 +1,6 @@
 # Scope
 
-本节的术语（locus、inhabit、target scope、bound、belongs to，以及 parent scope、immediate scope、intervenes）来自 P1787R6，2020-12 并入标准草案，属于 C++23；C++20 用的是 declarative region、potential scope、point of declaration 这套词。
+本篇的术语（locus、inhabit、target scope、bound、belongs to，以及 parent scope、immediate scope、intervenes）来自 P1787R6，2020-12 并入标准草案，属于 C++23；C++20 用的是 declarative region、potential scope、point of declaration 这套词。
 
 初衷（P1787R6 引言）：旧的 [basic.scope] 把"scope"定义了两遍，对命名空间是一个还是多个 declarative region 前后不一，再加上模块让"只看本翻译单元里靠前的声明"这个默认假设不再成立，所以整体重写。
 

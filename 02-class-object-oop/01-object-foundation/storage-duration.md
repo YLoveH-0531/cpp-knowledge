@@ -13,5 +13,5 @@
   - **automatic** storage duration
     - Variables that belong to a block scope and are not explicitly declared `static`, `thread_local`,(since C++11) or `extern`. 存储持续到所在的块退出。
     - Variables that belong to a parameter scope (i.e. function parameters). 存储持续到形参销毁之后。
-    - Temporary objects：标准说临时对象的存储期是静态、线程、自动三者之一（C++20 [basic.stc]/2），通常是自动；cppreference 只写了"自动"，并不完整。临时对象因绑定到引用而被延长生命周期时，存储期跟着那个引用走：命名空间作用域的 `const int& r = 5;`，临时对象是静态存储期，程序结束才销毁（[class.temporary]/6、/7）；函数里的同类写法则是自动存储期。实现观察（g++ 实测，不是语言保证）：前者的临时对象放在 `.rodata`（符号 `_ZGR1r_`），后者在栈上。
+    - Temporary objects：标准说临时对象的存储期是静态、线程、自动三者之一（C++20 [basic.stc]/2），通常是自动。cppreference 的 Automatic 一节只写了“临时对象也是自动存储期”，它开头一句则说三种存储期都可以与临时对象相关。临时对象因绑定到引用而被延长生命周期时，存储期跟着那个引用走：命名空间作用域的 `const int& r = 5;`，临时对象活到引用的生命周期结束，也就是程序结束，销毁时要和其他静态存储期对象一起排序（C++20 [class.temporary]/6、/7，/8 的例子）。标准没有单独一句话说“跟着引用走”，这是从 /7 的“与临时对象存储期相同的对象”和 /8 的例子读出来的；函数里的同类写法则是自动存储期。实现观察（g++ 实测，不是语言保证）：前者的临时对象放在 `.rodata`（符号 `_ZGR1r_`），后者在栈上。
   - **dynamic** storage duration：`new` 表达式创建的对象，存储由分配函数分配、由释放函数回收，何时结束由程序显式决定，不由作用域决定。在已有存储上隐式创建的对象也是动态存储期（现行草案 [basic.stc.general]/2）。
