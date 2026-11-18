@@ -101,13 +101,15 @@ double Account::rate = 0.04;      // 定义：整个程序只有这一处
 - [scope.md](../../07-language-mechanics/scope.md)
   - 「scope」一节的 ③、④：类外定义 `double Account::rate = 0.04;` 是“target scope 不一定等于 inhabited scope”的例子：它 inhabit 命名空间作用域，target scope 却是类 `Account`（[dcl.meaning.general]：带限定名的 declarator 取被限定的作用域；这套术语是现行草案的，N4861 里没有）。它属于类作用域，存储期却是静态的，正好印证 ④：“属于”与存储期无关。
 - [01-initialization-basics.md](../01-object-foundation/01-initialization/01-initialization-basics.md)
-  - §1 和「类对象的初始化」一节：静态成员不是对象的子对象，不走构造函数和成员初始化列表（写进列表直接编译报错，g++、clang 实测）。示例里 `Account() { ++count; }` 是赋值，不是初始化；类内的 `inline static int w = 30;` 也不是默认成员初始化器：后者每个对象构造时执行，前者全程序只做一次。
+  - §1.1：示例里 `Account() { ++count; }` 是赋值，不是初始化。
+- [constructors-and-destructors.md](constructors-and-destructors.md)
+  - 默认成员初始化器、成员初始化列表：静态成员不是对象的子对象，不走构造函数和成员初始化列表（写进列表直接编译报错，g++、clang 实测）；类内的 `inline static int w = 30;` 也不是默认成员初始化器：后者每个对象构造时执行，前者全程序只做一次。
 - [03-static-initialization-and-program-startup.md](../01-object-foundation/01-initialization/03-static-initialization-and-program-startup.md)
-  - §2.3.3：ODR-use 是同一条判据，用在两处：本篇用它判断要不要类外定义，这里用它定被推迟的动态初始化的最晚期限。`inline static` 成员是 §2.3.2 表里的 inline 变量，只看它自己的首次非初始化 ODR-use。
-  - §2.3.1、§2.3：三档排序里，普通静态成员“有序”，`inline static`“部分有序”，类模板的静态成员“无序”；阶段 1 里，定义没写初始化器的静态成员是零初始化。
+  - §2.3.2.2：ODR-use 是同一条判据，用在两处：本篇用它判断要不要类外定义，这里用它定被推迟的动态初始化的最晚期限。`inline static` 成员是 §2.3.2.2 表里的 inline 变量，只看它自己的首次非初始化 ODR-use。
+  - §2.3.1、§2.2：三档排序里，普通静态成员“有序”，`inline static`“部分有序”，类模板的静态成员“无序”；静态初始化里，定义没写初始化器的静态成员是零初始化。
   - §2.4：Issues 里“跨翻译单元的初始化顺序”的解法是函数内 `static`（构造时间由调用决定）；C++17 之前想把变量的定义放进头文件，也是借 inline 函数里的 `static` 同一对象这一条。
-  - §3.2、§3.3：示例里三个静态成员落在三个节：`rate`（0.04）在 `.data`，`count`（常量初始化成 0）在 `.bss`，`kNameMax`（const 且被取地址）在 `.rodata`，与 §3.3 “按值分”一致（链接后的可执行文件上用 objdump 实测，g++ 11.4、clang 14）。Issues 表第三列的符号类型，是链接器合并多个 .o 的依据。
-  - §4.1：静态数据成员的整条生命线就在这条时间线上：静态初始化 → 动态初始化 → `main` → 退出时析构（§4.3），与任何 `Account` 对象的生命周期无关。
+  - §3.2、§3.3：示例里三个静态成员落在三个节：`rate`（0.04）在 `.data`，`count`（常量初始化成 0）在 `.bss`，`kNameMax`（const 且被取地址）在 `.rodata`，与 §3.3 “按值放”一致（链接后的可执行文件上用 objdump 实测，g++ 11.4、clang 14）。Issues 表第三列的符号类型，是链接器合并多个 .o 的依据。
+  - §4.1：静态数据成员的整条生命线就在这条时间线上：静态初始化 → 动态初始化 → `main` → 退出时析构（§4.2），与任何 `Account` 对象的生命周期无关。
 
 ## Example
 

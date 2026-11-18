@@ -17,7 +17,7 @@
 | 名字（编译、链接期） | Q1 这个名字在哪里看得见？ | 作用域 | [scope.md](../07-language-mechanics/scope.md) |
 | | Q2 别的 .cpp 里的同名，是同一个实体吗？ | 链接、ODR | [odr.md](../07-language-mechanics/odr.md)；[storage-class-specifiers-and-linkage.md](../07-language-mechanics/storage-class-specifiers-and-linkage.md) |
 | 对象（运行期） | Q3 存储属于哪一类？对象何时存在？ | 存储期、生命周期 | [storage-duration.md](01-object-foundation/storage-duration.md)；[lifetime.md](01-object-foundation/lifetime.md) |
-| | Q4 怎么初始化，谁先谁后？ | 初始化 | [01-initialization-basics.md](01-object-foundation/01-initialization/01-initialization-basics.md) §3.2；[02-initialization-forms.md](01-object-foundation/01-initialization/02-initialization-forms.md)；[03-static-initialization-and-program-startup.md](01-object-foundation/01-initialization/03-static-initialization-and-program-startup.md) §2 |
+| | Q4 怎么初始化，谁先谁后？ | 初始化 | [01-initialization-basics.md](01-object-foundation/01-initialization/01-initialization-basics.md) §2；[constructors-and-destructors.md](02-class-and-oop/constructors-and-destructors.md)；[02-initialization-forms.md](01-object-foundation/01-initialization/02-initialization-forms.md)；[03-static-initialization-and-program-startup.md](01-object-foundation/01-initialization/03-static-initialization-and-program-startup.md) §2 |
 | 实现（Linux） | Q5 落在可执行文件和进程的哪里？ | 节与段、栈和堆 | [03-static-initialization-and-program-startup.md](01-object-foundation/01-initialization/03-static-initialization-and-program-startup.md) §3 |
 | | Q6 从加载到退出，各在何时发生？ | 启动与退出 | [03-static-initialization-and-program-startup.md](01-object-foundation/01-initialization/03-static-initialization-and-program-startup.md) §4 |
 | 案例 | 类的静态数据成员，把 Q1–Q6 各走一遍 | | [static-data-members.md](02-class-and-oop/static-data-members.md) |
@@ -48,7 +48,8 @@
 | [scope.md](../07-language-mechanics/scope.md) | TODO | 笔记完成 |
 | [odr.md](../07-language-mechanics/odr.md) | TODO | 笔记完成 |
 | [static-data-members.md](02-class-and-oop/static-data-members.md) | TODO | 笔记完成 |
-| 构造与析构、运算符重载、继承、虚函数 | TODO | 待写 |
+| [constructors-and-destructors.md](02-class-and-oop/constructors-and-destructors.md) | TODO | 构造部分已放入，析构待写 |
+| 运算符重载、继承、虚函数 | TODO | 待写 |
 
 ## 读完应能回答
 
