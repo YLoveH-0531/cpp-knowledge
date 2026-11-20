@@ -12,7 +12,8 @@
 | 块作用域的 `static`、`thread_local` 呢？ | 静态初始化同上；动态初始化在控制流第一次经过声明时 | §2.4 |
 | 初始化抛异常呢？ | 非局部变量：`std::terminate`；块作用域变量：异常传播，下次重试 | §2.5 |
 | 落到可执行文件里是什么样？ | 对象在 `.data`、`.bss` 或线程局部存储，初始化函数的指针在 `.init_array` | §3 |
-| 怎么启动、怎么销毁？ | 内核装载 → `ld.so` → `__libc_start_main`；销毁时线程存储期先于静态存储期，后者与 `atexit` 函数交错，有先后关系的按倒序 | §4 |
+| 怎么启动？ | 内核装载 → `ld.so` → `__libc_start_main` | §4.1 |
+| 怎么销毁？ | 线程存储期先于静态存储期，后者与 `atexit` 函数交错，有先后关系的按倒序 | §4.2 |
 
 主线是 §2：静态初始化 → 动态初始化 → 顺序与时机 → 销毁（§4.2）。§3、§4 说明这些规则怎样落到实际程序里，不必掌握到同等深度。
 
@@ -23,26 +24,26 @@
 本篇讨论**静态存储期**或**线程存储期**的变量，按声明位置分两类：
 
 - **非局部变量**（non-local variable）：命名空间作用域的变量和类的静态数据成员，具有静态存储期，或带 `thread_local` 而具有线程存储期。
-- **块作用域变量**：块作用域里声明为 `static`（静态存储期）或 `thread_local`（线程存储期）的变量。其余的不在讨论范围内：没有 `static`、`thread_local`、`extern` 的变量是自动存储期（[basic.stc.auto]/1），`extern` 声明引用的是别处定义的变量。
+- **块作用域变量**：块作用域里声明为 `static`（静态存储期）或 `thread_local`（线程存储期）的变量。其余的块作用域变量不在讨论范围内：没有 `static`、`thread_local`、`extern` 的是自动存储期（[basic.stc.auto]/1），`extern` 声明引用的是别处定义的变量。
 
 声明位置（非局部、块作用域）和存储期（静态、线程、自动）是两个维度。现行草案把 non-local variable 改称 non-block variable（对静态、线程存储期的变量，范围相同），本篇沿用 C++20 和 cppreference 的 non-local。
 
 ### 2.2 静态初始化与动态初始化
 
-对具有静态或线程存储期的变量（[basic.start.static]/2）：
+对具有静态或线程存储期的变量（[basic.start.static]/2；非局部变量和块作用域的 `static`、`thread_local` 变量都适用，区别只在动态初始化的次序和时机，见 §2.3、§2.4）：
 
 1. 满足 constant-initialized 的条件，做**常量初始化**；
-2. 否则，做**零初始化**。
+2. 否则，做**零初始化**；其中还要执行初始化的，再做动态初始化（[dcl.init]/10 的注）。
 
-两者合称**静态初始化**，其余的初始化是**动态初始化**。静态存储期的变量随程序启动初始化，线程存储期的随线程执行初始化（/1）；在这两个阶段内，所有静态初始化都 strongly happens before 任何动态初始化。
+常量初始化和零初始化合称**静态初始化**，其余的初始化是**动态初始化**。静态存储期的变量随程序启动初始化，线程存储期的随线程执行初始化（/1）；在这两个阶段内，所有静态初始化都 strongly happens before 任何动态初始化。
 
 **constant-initialized**（[expr.const]/2）：变量有初始化器（或其默认初始化会执行某些初始化），并且初始化的完整表达式是常量表达式（可以调用 `constexpr` 构造函数）。例如 `int a = 10;` 满足；`int b;` 没有初始化器，对 `int` 的默认初始化什么也不做，不满足；`C gc;` 的 `constexpr` 默认构造函数会执行初始化，且整个是常量表达式，满足（`struct C { int x; constexpr C() : x(10) {} };`）。
 
-没做常量初始化的变量先零初始化；其中还要执行初始化的，再做动态初始化（[dcl.init]/10 的注）。零初始化的结果见 [01-initialization-basics.md](01-initialization-basics.md) §2.2。静态初始化通常在编译期算好、随程序映像装载（§3.3）；标准只保证它先于动态初始化。
-
-验证：C++20 的 `constinit` 要求变量没有动态初始化，否则编译不过（[dcl.constinit]/2）。g++ 11.4：`constinit int a = 10;`、`constinit int b;`、`constinit C gc;` 通过；`constinit int c = f();`（`f` 非 `constexpr`）、`constinit U gu;`（`U()` 非 `constexpr`，即 [01-initialization-basics.md](01-initialization-basics.md) §2.2 的 `U`）报错。
+零初始化的结果见 [01-initialization-basics.md](01-initialization-basics.md) §2.2。静态初始化通常在编译期算好、随程序映像装载（§3.3）。
 
 ### 2.3 非局部变量的动态初始化
+
+静态初始化见 §2.2，先于所有动态初始化；本节讲动态初始化的顺序（§2.3.1）和时机（§2.3.2）。
 
 #### 2.3.1 顺序
 
@@ -53,27 +54,6 @@
 | **有序**（ordered） | 其他非局部变量 | 同一翻译单元内，定义靠前的先初始化 |
 | **部分有序**（partially-ordered，C++17） | inline 变量（隐式或显式实例化的特化除外） | 若 V 部分有序、W 非无序，且 W 的每个定义之前都有 V 的某个定义，则 V 先于 W |
 | **无序**（unordered） | 类模板的静态数据成员、变量模板（C++14）的隐式或显式实例化；非 inline 的显式特化除外（它有序） | 无保证 |
-
-“定义 D 先于定义 E”（appearance-ordered，/2）：D 与 E 在同一翻译单元且 D 在前；C++20 起，E 所在的翻译单元接口依赖（模块）D 所在的，也算。
-
-两个变量 V、W 的初始化次序（/3）：
-
-- 满足上表的保证：V sequenced before W。若已启动非主线程，且 V、W 不是同一翻译单元内的有序变量，则为 strongly happens before。
-- 否则，若在 V、W 中任一个初始化之前已启动非主线程：它们在哪个线程执行未指定，在同一线程内也是 unsequenced。
-- 否则：indeterminately sequenced。
-
-跨翻译单元的例子：
-
-```cpp
-// a.cpp
-extern B b;
-A a;            // A 的构造函数使用 b
-
-// b.cpp
-B b;
-```
-
-`a`、`b` 在不同翻译单元，动态初始化的先后没有保证。`a` 先初始化、`b` 的动态初始化还没执行时，`A::A()` 读到的是只被零初始化的 `b`；但实现可以把 `b` 提前成静态初始化（§2.3.2.1），那时读到的就是完整的 `b`。实测（`B()` 只写入常量）：g++ 11.4 的结果随链接顺序变，clang 14 `-O2` 把 `b` 放进 `.data`，两种顺序都读到完整的 `b`。解法见 §2.4：把 `b` 换成函数里的 `static`。
 
 #### 2.3.2 时机
 
@@ -86,7 +66,7 @@ B b;
 
 g++ 11.4 实测：静态存储期变量（含 inline 变量）都在 `main` 之前构造；`thread_local` 变量推迟到本线程第一次 ODR-use 同一翻译单元里有动态初始化的 `thread_local` 变量时，该翻译单元里这类变量一起构造（只用到常量初始化的不触发），没用到的线程不构造。
 
-##### 2.3.2.1 提前初始化（early dynamic initialization）
+#### 2.3.2.1 提前初始化（early dynamic initialization）
 
 满足下面两个条件时，实现可以把本该动态的初始化当作静态初始化来做（[basic.start.static]/3）：
 
@@ -102,22 +82,22 @@ double d1 = fd();
 
 `d1` 被提前成静态初始化、`d2` 仍动态初始化时，两者都是 1.0；其余组合 `d2` 都是 0.0。标准把 `d2` 的值规定为 unspecified，不应依赖。
 
-##### 2.3.2.2 推迟初始化与 ODR-use
+#### 2.3.2.2 推迟初始化与 ODR-use
 
-推迟的动态初始化必须在**最晚期限**之前完成，期限由 non-initialization ODR-use 定（[basic.start.dynamic]/4–/7）；在哪个线程、哪个程序点执行，由实现定义。
+推迟的动态初始化必须在**最晚期限**之前完成，期限由 non-initialization ODR-use 定（[basic.start.dynamic]/4–/7）。
 
 - **ODR-use**：要求实体有定义的使用（[basic.def.odr]/4、/7），通常包括调用函数、取地址、读写变量、绑定引用；判定细则和例外见 [odr.md](../../../07-language-mechanics/odr.md)。
-- **non-initialization ODR-use**：不是由非局部变量的初始化直接或间接引起的 ODR-use，如 `main` 或线程函数里的使用；初始化器调用的函数、这些函数再调用的函数，不算。
+- **non-initialization ODR-use**：不是由非局部变量的初始化直接或间接引起的 ODR-use。
 
 | 变量 | 最晚期限（须在此之前完成初始化） |
 |---|---|
 | 非 inline、静态存储期 | 同一翻译单元里**任何非 inline 函数或非 inline 变量**的第一次 non-initialization ODR-use |
 | inline、静态存储期（C++17） | **该变量自己**的第一次 non-initialization ODR-use |
-| 非 inline、线程存储期 | 本线程对同一翻译单元里**任何非 inline、有动态初始化的线程存储期变量**的第一次 non-initialization ODR-use† |
+| 非 inline、线程存储期 | 本线程对同一翻译单元里**任何非 inline、有动态初始化的线程存储期变量**的第一次 non-initialization ODR-use |
 
-† C++20 原文（/7）没有“有动态初始化”这个限定；CWG 2684（2026-06 接受为 DR）加上了，本篇按修正后的规则。
+C++20 原文（/7）没有“有动态初始化”这个限定；CWG 2684（2026-06 接受为 DR）加上了，本篇按修正后的规则。
 
-推迟的是执行时机，不是允许晚于使用。例子：
+例子：
 
 ```cpp
 // service.cpp
@@ -126,9 +106,7 @@ int global = get_value();
 void run() {}
 ```
 
-若 `global` 的动态初始化被推迟，调用 `run()` 之前它就必须完成：`run()` 是同一翻译单元里的非 inline 函数，对它的 ODR-use 触发期限，尽管 `run()` 没碰 `global`。此时即使 `global` 自己没被 ODR-use，只要初始化有副作用，也不能省略（/5 的脚注，[basic.stc.static]/2）。inline 变量只看自己：ODR-use 同一头文件里的 inline 函数，不会触发另一个 inline 变量的初始化。
-
-cppreference 把期限写成“任何静态/线程存储期的**变量**”，没提函数，以标准条文（非 inline 函数或非 inline 变量）为准；它还说，翻译单元里的东西始终没被 ODR-use 时，被推迟的变量可能永不初始化（模拟按需加载的动态库）。
+若 `global` 的动态初始化被推迟，调用 `run()` 之前它就必须完成：`run()` 是同一翻译单元里的非 inline 函数，对它的 ODR-use 触发期限，尽管 `run()` 没碰 `global`。此时即使 `global` 自己没被 ODR-use，只要初始化有副作用，也不能省略（/5 的脚注，[basic.stc.static]/2）。inline 变量只看自己：ODR-use 同一头文件里的 inline 函数，只要函数体里没有 ODR-use 某个 inline 变量，就不会触发它的初始化。
 
 ### 2.4 块作用域的 static 与 thread_local 变量
 
@@ -200,11 +178,11 @@ A a;            // A 的构造函数调用 get_b()，此时 b 才构造
 
 ### 3.3 与初始化的关系
 
-- `.data` / `.bss` 按值放，不按 C++ 的初始化类别放：可写的零值（零初始化，或常量初始化成 0）通常进 `.bss`，可写的非零值进 `.data`。`const` 不等于一定进 `.rodata`：只读且无需重定位的才进（如 `extern const int k = 5;`）；PIE 下含地址的只读数据（如 `int* const p = &g;`）要重定位，进 `.data.rel.ro.local` 等节；需要动态初始化的 `const` 对象要先被写入，仍在 `.bss`。
-- 需要动态初始化的对象，先完成零初始化（映像全零，通常在 `.bss`），再由初始化函数写入最终值；被提前成静态初始化的，直接按最终值放，没有初始化函数。
+- `.data` / `.bss` 按值放，不按 C++ 的初始化类别放：可写的零值（零初始化，或常量初始化成 0）通常进 `.bss`，可写的非零值进 `.data`。`const` 不等于一定进 `.rodata`：只读且无需重定位的才进（如 `extern const int k = 5;`）；需要动态初始化的 `const` 对象要先被写入，仍在 `.bss`。
+- 需要动态初始化的对象，先完成零初始化（映像全零：静态存储期的通常在 `.bss`，线程存储期的通常在 `.tbss`），再由初始化函数写入最终值；被提前成静态初始化的，直接按最终值放。
 - `.init_array` 存函数指针，不存对象：对象在数据节，函数的机器码在 `.text`，`.init_array` 指向这些函数。
 
-实测（g++ 11.4，`-O0`）：`int a = 10;` 在 `.data`，`int b;` 和 `int c = f();` 在 `.bss`；`c` 由本翻译单元的初始化函数（登记在 `.init_array`）在 `main` 之前写入。`extern const int k = 5;` 在 `.rodata`，`const S cs;`（`S` 的默认构造函数非 `constexpr`）在 `.bss`，`int* const p = &g;` 在 PIE 下进 `.data.rel.ro.local`，`-fno-pie` 下进 `.rodata`。
+实测（g++ 11.4，`-O0`）：`int a = 10;` 在 `.data`，`int b;` 和 `int c = f();` 在 `.bss`；`c` 由本翻译单元的初始化函数（登记在 `.init_array`）在 `main` 之前写入。`extern const int k = 5;` 在 `.rodata`，`const S cs;`（`S` 的默认构造函数非 `constexpr`）在 `.bss`。
 
 ## 4. 从装载到退出
 
@@ -235,20 +213,6 @@ A a;            // A 的构造函数调用 get_b()，此时 b 才构造
    - 某次 `atexit` 调用 strongly happens before 对象的初始化完成，则这个对象先析构，该函数后执行；
    - 某次 `atexit` 调用 strongly happens before 另一次，则后一次登记的函数先执行；
    - 静态初始化的对象，销毁顺序与按动态初始化时相同。
-
-不能理解成“先析构完所有静态对象，再统一调用 `atexit` 函数”。g++ 11.4 实测：
-
-| 事件（按发生先后） | 退出时的执行次序 |
-|---|---|
-| 对象 A 初始化完成 | 5. 析构 A |
-| 登记 `h1` | 4. 调用 `h1` |
-| 对象 B 初始化完成 | 3. 析构 B |
-| 登记 `h2` | 2. 调用 `h2` |
-| 块作用域的静态对象 C 初始化完成 | 1. 析构 C |
-
-实现：g++ 在每个需要析构的静态存储期对象构造完成后，调用 `__cxa_atexit` 登记它的析构函数；glibc 的 `atexit` 只是 `__cxa_atexit` 的包装，二者共用一张表，所以顺序天然是倒序。`thread_local` 对象另用 `__cxa_thread_atexit`。
-
-直接调用 `std::exit` 不会销毁调用者栈上的自动存储期对象（[support.start.term]）；`std::abort` 不销毁任何对象，也不调用 `atexit` 登记的函数（[basic.start.term]/7）。
 
 ## Reference
 

@@ -33,7 +33,7 @@ E c{1};     // 正确
 E d = {1};  // 错误：explicit 构造函数参与选择，选中则 ill-formed
 ```
 
-弄清这些现象要三件事：拷贝与直接初始化怎样选构造函数（i）；列表初始化怎样选构造函数（ii、iii）；`explicit` 把哪些构造函数挡在哪些写法之外（见 constructors-and-destructors.md §5）。
+弄清这些现象要三件事：拷贝与直接初始化怎样选构造函数（i）；列表初始化怎样选构造函数（ii）；`explicit` 把哪些构造函数挡在哪些写法之外（见 constructors-and-destructors.md §5）。
 
 ## What
 
@@ -79,8 +79,8 @@ E d = {1};  // 错误：explicit 构造函数参与选择，选中则 ill-formed
 | 条件 | 做法 |
 |---|---|
 | **情形 1**：源是 T 的纯右值（忽略 cv 限定）  | 直接用它初始化目标对象，不再查构造函数（C++17 起）；之前归入情形 2，拷贝或移动可以省略，见 i.3 |
-| **情形 2**：直接初始化；或拷贝初始化且源类型是 T 或 T 的派生类 | 对 T 的构造函数做重载决议。**直接初始化的候选是全部构造函数，拷贝初始化的是转换构造函数**。C++20 起，直接初始化时，如果没有可行的构造函数、T 是聚合类且初始化器是圆括号表达式列表，则按聚合初始化（ii.4） |
-| **情形 3**：其余的拷贝初始化 | 选一个用户定义转换，候选是 T 的转换构造函数，以及源是类类型时，该类及其基类中能产生 T 或其派生类的非 `explicit` 转换函数。选中构造函数时，调用的结果是 T 的纯右值；选中转换函数时，是转换函数调用的结果。两种情形都用调用的结果直接初始化目标：结果是 T 的纯右值时走情形 1（C++17 起），其余（左值、将亡值、派生类的值）走情形 2 |
+| **情形 2**：直接初始化；或拷贝初始化且源类型是 T 或 T 的派生类 | 对 T 的构造函数做重载决议。**直接初始化的候选是全部构造函数，拷贝初始化的是转换构造函数**。 |
+| **情形 3**：其余的拷贝初始化 | 选一个用户定义转换，候选是 T 的转换构造函数，以及源是类类型时，该类及其基类中能产生 T 或其派生类的非 `explicit` 转换函数。两种情形都用调用的结果直接初始化目标：结果是 T 的纯右值时走情形 1（C++17 起），其余（左值、将亡值、派生类的值）走情形 2 |
 
 情形 2 的候选集见 [over.match.ctor]/1，情形 3 的见 [over.match.copy]/1。
 
@@ -124,7 +124,7 @@ T c = std::string("abc");    // 拷贝初始化：一次转换，正确
 
 #### 1. 定义与两种形式
 
-**列表初始化**（list-initialization）是用花括号初始化列表（braced-init-list）初始化对象或引用（[dcl.init.list]/1）。列表里逗号隔开的子句叫元素，列表可以为空；元素按出现顺序求值，前一个的值计算和副作用先于后一个（/4）；函数实参之间的求值顺序则未指定。
+**列表初始化**（list-initialization）是用花括号初始化列表（braced-init-list）初始化对象或引用（[dcl.init.list]/1）。列表可以为空；元素按出现顺序求值。
 
 出现在直接初始化语境里的叫 **direct-list-initialization**，出现在拷贝初始化语境里的叫 **copy-list-initialization**：
 
@@ -137,16 +137,18 @@ T c = std::string("abc");    // 拷贝初始化：一次转换，正确
 
 | 项 | 条件 | 做法 |
 |---|---|---|
-| 3.1 | 列表包含指定初始化列表（designated-initializer-list） | T 必须是聚合类，聚合初始化（C++20） |
+| 3.1 | T 是聚合类，列表包含指定初始化列表（designated-initializer-list） | 聚合初始化（C++20） |
 | 3.2 | T 是聚合类，列表只有一个元素，类型是 U（忽略 cv 限定），U 是 T 或 T 的派生类 | 用该元素初始化：直接列表初始化按直接初始化，拷贝列表初始化按拷贝初始化 |
 | 3.4 | T 是聚合 | 聚合初始化 |
 | 3.5 | 列表为空，T 是有默认构造函数的类 | 值初始化 |
-| 3.6 | T 是 `std::initializer_list` 的特化 | 构造该对象（iii） |
+| 3.6 | T 是 `std::initializer_list` 的特化 | 构造该对象（示例见 ii.3） |
 | 3.7 | T 是类类型 | 构造函数重载决议（ii.3） |
 | 3.9 | T 不是类，列表只有一个元素（T 是引用时，被引用类型要与元素类型 reference-related） | 用该元素直接（或拷贝）初始化，禁止窄化转换 |
 | 3.11 | 列表为空 | 值初始化 |
 
 表中略去 3.3 字符数组、3.8 固定底层类型的枚举（C++17，只适用于直接列表初始化）、3.10 其余的引用。
+
+表按顺序匹配：到 3.11 时，T 只剩非类、非引用的类型（如 `int`、指针、枚举），空列表一律值初始化；类和数组的空列表在 3.4、3.5、3.7 已处理，引用的在 3.10 已处理。
 
 #### 3. 非聚合类：initializer-list 构造函数优先
 
@@ -166,12 +168,28 @@ T 是非聚合类（3.7）时，构造函数分两步选（[over.match.list]/1�
 | `std::vector<int> v{};` | 默认构造函数（3.5） | 空 |
 | `std::vector<std::string> v{3, "x"};` | `vector(size_type, const string&)` | 3 个 `"x"`：`3` 不能转成 `std::string`，第 1 步不可行 |
 
-**窄化转换在选定构造函数之后才检查，不会再进入第 2 步**（[dcl.init.list]/3.7；窄化转换的定义见 /7）：第 1 步判断可行性只看隐式转换，窄化转换也是隐式转换。
+**窄化转换不影响重载决议，选定函数之后才检查**（[dcl.init.list]/3.7；窄化转换的定义见 /7）：判断函数是否可行，只看实参有没有隐式转换序列，需要窄化转换的函数照样可行；函数选定后（无论在第 1 步还是第 2 步），若所需转换里有窄化转换，则 ill-formed，不会改选其他函数。
 
 ```cpp
 struct N { N(std::initializer_list<int>); N(double, double); };
 N a{1.5, 2.5};   // 错误：initializer_list<int> 构造函数可行，被选中，随后发现要窄化
 N b(1.5, 2.5);   // 正确：圆括号是直接初始化，选 N(double, double)
+std::vector<char> v{300};   // 错误：initializer_list<char> 构造函数可行，被选中，300 转 char 是窄化；不会改选 vector(size_type) 造出 300 个元素
+```
+
+选定 initializer-list 构造函数后，形参 `initializer_list<E>` 还要由列表初始化出来（3.6）：每个元素拷贝初始化出 `const E` 数组的对应元素。窄化转换和 `explicit` 都在这一步失败，同样不会改选其他函数。底层数组的细节见 [function.md](../../../01-basic/function.md)。
+
+```cpp
+std::initializer_list<int> il = {1, 2, 3};  // 3.6：T 本身是 initializer_list：元素拷贝初始化进 const int[3]，il 指向它，数组与 il 同寿
+std::vector<int> v{1, 2, 3};                // 3.7：第 1 步选中 vector(initializer_list<int>)；形参按 3.6 初始化，数组是函数实参，活到完整表达式结束
+
+struct T { T() = default; explicit T(const T&) = default; };
+T a;
+std::vector<T> w;
+w.push_back(a);       // 正确：容器内部直接初始化新元素
+T b = a;              // 错误：拷贝初始化不能用 explicit 拷贝构造函数
+std::vector<T> u{a};  // 错误：同类型实参的转换序列是恒等转换（不看 explicit），第 1 步选中 initializer_list<T> 构造函数，
+                      // 再拷贝初始化数组元素时失败；不会进入第 2 步
 ```
 
 #### 4. 聚合初始化在列表初始化中的位置
@@ -182,7 +200,6 @@ T 是聚合时（3.4），列表初始化按元素的顺序初始化聚合，不
 - **元素**：数组是各下标的元素；类是直接基类（按声明顺序）后接直接非静态数据成员（按声明顺序，不含匿名联合的成员）（/2）。
 - 每个显式初始化的元素，由对应的子句**拷贝初始化**；子句本身是花括号列表时，该元素按列表初始化，规则递归套用（/4）。指定初始化（C++20）里，元素由指派符后的初始化器初始化，初始化的种类看它的形式：`.m = x` 是拷贝初始化，`.m{x}` 是直接列表初始化（CWG 2619）。
 - 没有子句的元素（非联合体聚合）：有默认成员初始化器就用它，否则从空列表拷贝初始化，引用成员则 ill-formed；子句比元素多：ill-formed（/11）。
-- 子句是表达式、不能隐式转换成当前元素的类型，而当前元素是有元素的子聚合时，省略这个子聚合的花括号，该子句起依次初始化它的元素（brace elision，/15–/16）。
 
 ```cpp
 struct Point { int x; int y = 0; };     // C++14 起是聚合（有默认成员初始化器）
@@ -203,31 +220,6 @@ A a1{.s{1}};    // 直接列表初始化 s，可用 explicit 构造函数
 A a2{.s = 1};   // 拷贝初始化 s，错误
 ```
 
-### iii. std::initializer_list 的底层数组
-
-对应 3.6：`std::initializer_list<E>` 对象由列表构造。实现生成并物化一个“N 个 `const E` 的数组”（N 是元素个数）；数组的每个元素由列表的对应元素**拷贝初始化**，`initializer_list` 对象指向这个数组、不拥有它；需要窄化转换则 ill-formed（[dcl.init.list]/5）。现行草案和 cppreference 把这个数组叫 backing array。
-
-数组的生命周期同其他临时对象，用它初始化 `initializer_list` 对象时才像绑定引用一样被延长（/6）。拷贝 `initializer_list` 只拷贝句柄、不拷贝数组（[initializer.list.syn]/1 的注），也不延长数组的生命周期，所以副本在数组销毁后不能再访问元素：
-
-```cpp
-std::vector<int> v{1, 2, 3};                                     // 数组是函数实参，活到完整表达式结束
-std::initializer_list<int> il = {1, 2, 3};                       // 数组与 il 同寿
-struct A { std::initializer_list<int> m; A() : m{1, 2, 3} {} };  // ill-formed：m 悬空（clang 14 报错，g++ 11.4 只在 -Wextra 下警告）
-```
-
-元素是拷贝初始化，所以元素类型的 `explicit` 构造函数在这里用不上。容器自己构造元素用的是直接初始化：对 `std::allocator`，`allocator_traits::construct` 在已分配的存储上写 `::new (p) T(args...)`（C++20 起经 `std::construct_at`，效果相同；[container.requirements.general]/3、[allocator.traits.members]）。两者的差别：
-
-```cpp
-struct T { T() = default; explicit T(const T&) = default; };
-T a;
-std::vector<T> v;
-v.push_back(a);       // 正确：容器内部直接初始化新元素
-T b = a;              // 错误：拷贝初始化不能用 explicit 拷贝构造函数
-std::vector<T> w{a};  // 错误：先选中 initializer_list<T> 构造函数（同类型实参的转换序列是恒等转换，不看 explicit），再初始化底层数组的元素时失败
-```
-
-自定义分配器的 `construct` 可以不同，以上针对 `std::allocator`。
-
 ## Relation
 
 ### i. Issues
@@ -237,7 +229,7 @@ std::vector<T> w{a};  // 错误：先选中 initializer_list<T> 构造函数（�
 - **以为聚合的花括号总是聚合初始化。** 列表只有一个 T 或其派生类的元素时，是用该元素初始化整个对象（ii.2 的 3.2）：A 是聚合、a0 是 A 的对象时，`A a{a0};` 拷贝 a0，不是用 a0 初始化第一个成员。
 - **以为 `explicit` 只管单参数构造函数。** 转换构造函数自 C++11 起不限于单参数：`struct M { explicit M(int, int); };` 挡住 `M m = {1, 2};`，不挡 `M m{1, 2};`。
 - **以为聚合与构造函数互斥。** C++11 到 C++17，类内写 `A() = delete;` 的类仍是聚合，`A a{1};` 绕过被删除的构造函数；C++20 起它不再是聚合。
-- **以为容器里的元素都是拷贝初始化出来的。** `push_back(a)` 经分配器直接初始化新元素；`std::vector<T>{a}` 的底层数组元素才是拷贝初始化。见 iii。
+- **以为容器里的元素都是拷贝初始化出来的。** `push_back(a)` 经分配器直接初始化新元素；`std::vector<T>{a}` 的底层数组元素才是拷贝初始化。见 ii.3。
 
 ### ii. Connection
 
@@ -255,24 +247,183 @@ C++ Core Guidelines 把这些规则写成建议：C.46 默认把单参数构造�
 
 ## Note
 
-### i. 版本变化
+### i. 空列表：3.5 与 [over.match.list] 的分工
 
-| 版本 | 变化 |
-|---|---|
-| C++11 | 列表初始化、`std::initializer_list`、窄化转换的限制；`explicit` 可用于转换函数；转换构造函数不再限于单参数；聚合的起点：无 user-provided 构造函数、无默认成员初始化器、无 private 或 protected 非静态数据成员、无基类、无虚函数（N3337） |
-| C++11 的缺陷报告（追溯适用） | CWG 1301（CWG 1324 由它解决）：聚合初始化先于空列表的值初始化；CWG 1270：花括号省略不再限于 `=` 形式；CWG 1467：同类型的单元素列表直接初始化（CWG 2137 又限定为聚合类，即现在的 3.2）；CWG 1518（P0398R0）：`explicit` 默认构造函数不能用于拷贝初始化语境，有 `explicit` 构造函数或继承来的构造函数的类不是聚合；P1957R2：指针到 `bool` 是窄化转换；CWG 2610（追溯 C++17）：只有 private 或 protected 的直接基类才使类不是聚合 |
-| C++14 | 聚合允许默认成员初始化器（N3653） |
-| C++17 | 保证的拷贝省略（P0135R1）；聚合允许 public 非虚基类（P0017R1）；固定底层类型枚举的直接列表初始化（P0138R2） |
-| C++20 | 聚合改为“无用户声明的构造函数”（P1008R1）；圆括号聚合初始化（P0960R3）；指派初始化（P0329R4）；`explicit(bool)`（P0892R2）；协程形参的拷贝可以省略 |
-| C++20 的缺陷报告（追溯适用） | CWG 2619：指定初始化的成员，初始化的种类由指定初始化器的形式决定（N4861 原文没有这句，现行草案 [dcl.init.general]/13 和 [dcl.init.aggr] 已写入） |
+正文 ii.2 的 3.5（列表为空且 T 有默认构造函数→值初始化）与 ii.3 第 2 步里的“否则”（列表为空且 T 有默认构造函数→不做第 1 步），条件相同。本节说明两处为什么都有，各自什么时候用得上。条文按 C++20（N4861）。
 
-### ii. 措辞差异
+#### 1. 3.7 的选择规则由 [over.match.list] 规定
 
-- 列表初始化的判定顺序（ii.2）逐版本不同：C++11 原文没有 3.1、3.2、3.3、3.8，并且 3.5 排在 3.4 之前；C++14 起聚合在前；3.2、3.3 出自 CWG 1467，CWG 2137 之后 3.2 只限聚合类；3.8 是 C++17 新增，3.1 是 C++20 新增。
-- [dcl.init] 里直接初始化场合的清单，措辞随版本变，内容不变：C++11/14 按“`T x(a);`、`T x{a};` 两种形式，以及 new、static_cast、函数式转换、基类和成员的初始化器”列；C++17 加上 condition 的花括号形式；C++20 起第一项按文法写成“圆括号表达式列表或花括号初始化列表”，mem-initializer 改由 [class.base.init]/7 规定。现行草案里拷贝初始化与直接初始化的定义在 [dcl.init.general]/13、/14，语义在 /15。
-- cppreference 的 explicit specifier 页，示例注释 `B b4 = {4, 5}; // error: copy-list-initialization does not consider B::B(int, int)` 不准确：[over.match.list]/1 和它自己的 list-initialization 页都说是考虑之后，选中才 ill-formed。
-- 花括号省略的条件，N4861（[dcl.init.aggr]/15）写“能初始化一个元素”（考虑所有隐式转换），现行草案改成“能形成从该表达式到元素类型的隐式转换序列”；本篇按后者的说法写。
-- cppreference 的 aggregate initialization 页把“no user-provided, inherited, or explicit constructors”标为 C++11 起、C++20 前，而 N3337 原文只有 “no user-provided constructors”：多出的 `explicit` 与继承来的构造函数来自追溯适用的 CWG 1518。本篇按实际生效的规则写。
+3.7 只写了：T 是类类型时，枚举适用的构造函数，由重载决议选出最佳的一个（[over.match]、[over.match.list]）；任一实参的转换需要窄化转换，则 ill-formed。怎样枚举、怎样分阶段，是 [over.match.list]/1 的内容：
+
+- **适用范围**：对非聚合类 T 做列表初始化，且 [dcl.init.list] 指明按本节做重载决议；**或者**为 [over.ics.list] 形成列表初始化的转换序列。
+- **两个阶段**（phase；正文 ii.3 称“第 1 步、第 2 步”，本节沿用）：
+  - (1.1) 列表非空，或 T 没有默认构造函数：先做一次重载决议，候选是 T 的 initializer-list 构造函数，实参是整个列表（作为一个实参）。
+  - (1.2) 否则（即列表为空且 T 有默认构造函数），或没有可行的 initializer-list 构造函数：再做一次重载决议，候选是 T 的全部构造函数，实参是列表的各个元素。
+- **explicit**：拷贝列表初始化中选中 explicit 构造函数，则 ill-formed。
+- **“默认构造函数”**（[class.default.ctor]/1）：每个形参（函数形参包除外）都有默认实参的构造函数，包括没有形参的构造函数。所以一个类可以有多个默认构造函数，被 `= delete` 的也算。
+
+#### 2. 两个调用方，以及 3.5 造成的差别
+
+[over.match.list] 主要有两个调用方（类模板实参推导 [over.match.class.deduct]/4 也引用它，本节不展开）：
+
+| 调用方 | 用途 | 列表为空且 T 有默认构造函数时 |
+|---|---|---|
+| [dcl.init.list]/3.7 | 初始化对象 | 前面有 3.5（来自 CWG 990）：先按值初始化处理，到不了 [over.match.list] |
+| [over.ics.list]/7 | 重载决议中，为类类型的形参形成隐式转换序列，不构造对象 | 没有对应 3.5 的规则：由 [over.match.list]/1 自己跳过第 1 步，选出默认构造函数 |
+
+#### 3. 例子
+
+g++ 11.4、clang 14 各跑 c++11/14/17/20，共 8 种组合，输出（或错误）一致。语句都放在 `main` 里，省略了 `#include`。
+
+**例一：有默认构造函数的类，两条路都得到 `A()`。**
+
+```cpp
+struct A {                                         // 有默认构造函数，另有两个 initializer-list 构造函数
+    A()                              { std::puts("  A()"); }
+    A(std::initializer_list<int>)    { std::puts("  A(initializer_list<int>)"); }
+    A(std::initializer_list<double>) { std::puts("  A(initializer_list<double>)"); }
+};
+void f(A) { std::puts("  f(A) 的函数体"); }
+
+A a{};    // 经 [dcl.init.list]：初始化对象。3.5：列表为空、A 有默认构造函数 → 值初始化，调 A()。
+          // 到不了 3.7，也不进 [over.match.list]
+f({});    // 经 [over.ics.list]：先在重载决议里为形参 A 形成转换序列。这里没有 3.5，
+          // 由 [over.match.list]/1 自己跳过第 1 步，选出 A()，f 可行（此时不构造对象）。
+          // 选定 f 之后才初始化形参：这是初始化，走 [dcl.init.list]，3.5 生效，调 A()
+```
+
+```text
+A a{};
+  A()
+f({});
+  A()
+  f(A) 的函数体
+```
+
+`f({})` 里 `A()` 只调用了一次，发生在形参初始化时。
+
+**例二：去掉 `A()`，两条路都二义。**
+
+```cpp
+struct A2 {                                        // 没有默认构造函数
+    A2(std::initializer_list<int>)    {}
+    A2(std::initializer_list<double>) {}
+};
+void f2(A2) {}
+
+A2 a2{};  // 错误：二义。3.5 不适用 → 3.7 → 第 1 步：空列表转 initializer_list<int> 和
+          // initializer_list<double> 都是恒等转换（[over.ics.list]/5），两个构造函数不分高下
+f2({});   // 错误：二义，原因相同，发生在 f2 的重载决议里
+```
+
+例一的 `A` 去掉 `A()` 就是 `A2`。没有 3.5 和“跳过第 1 步”这两处补丁，`A` 的两条路也会是这个结果；这正是 CWG 990（`A a{}`）和 CWG 1229（`f({})`）各自要避免的。
+
+**例三：没有默认构造函数、只有一个 initializer-list 构造函数：空列表由第 1 步处理。**
+
+```cpp
+struct N {                                         // 没有默认构造函数
+    N(std::initializer_list<int> il) { std::printf("  N(initializer_list<int>)，size = %zu\n", il.size()); }
+    N(int, int)                      { std::puts("  N(int, int)"); }
+};
+void fn(N) { std::puts("  fn(N) 的函数体"); }
+
+N n{};      // 3.5 不适用 → 3.7 → (1.1) 的条件“T 没有默认构造函数”成立，做第 1 步：
+            // 空列表转 initializer_list<int> 是恒等转换，可行，选中；size = 0
+N m{1, 2};  // 非空：第 1 步可行，选中 initializer-list 构造函数，不看 N(int, int)
+N k(1, 2);  // 圆括号不是列表初始化，选 N(int, int)
+fn({});     // 经 [over.ics.list]：第 1 步选中 initializer-list 构造函数，fn 可行；形参初始化走 3.7，同样选它
+
+struct P { P(int); };
+P p{};      // 错误：没有默认构造函数，3.5 不适用；第 1 步没有 initializer-list 构造函数；
+            // 第 2 步的实参个数为零，没有构造函数接得了
+```
+
+```text
+N n{};
+  N(initializer_list<int>)，size = 0
+N m{1, 2};
+  N(initializer_list<int>)，size = 2
+N k(1, 2);
+  N(int, int)
+fn({});
+  N(initializer_list<int>)，size = 0
+  fn(N) 的函数体
+```
+
+**例四：被删除的默认构造函数也是默认构造函数。**
+
+```cpp
+struct D {
+    D() = delete;                                  // 被删除，但仍是默认构造函数
+    D(std::initializer_list<int>) {}
+};
+void fd(D) {}
+
+D d{};    // 错误：3.5 适用（“有默认构造函数”不看能不能用）→ 值初始化 → 选中被删除的 D()；
+          // initializer-list 构造函数没有机会参与，不会改选它
+fd({});   // 错误：同样选中被删除的 D()
+```
+
+对比例三的 `N n{}`：有没有默认构造函数（不论能否使用），决定 `{}` 走 3.5 还是第 1 步。
+
+**例五：3.5 是值初始化，不只是“选默认构造函数”。**
+
+```cpp
+struct Z {
+    int x;
+    Z() = default;                                 // 默认构造函数不是用户提供的
+    Z(std::initializer_list<int>) {}
+};
+
+alignas(Z) unsigned char buf[sizeof(Z)];           // 每条语句前先把 buf 填成 0xFF，再在 buf 上构造，看 x 的字节
+new (buf) Z{};   // 3.5 → 值初始化：先零初始化 → 00 00 00 00
+new (buf) Z();   // 同样是值初始化 → 00 00 00 00
+new (buf) Z;     // 默认初始化，平凡的默认构造函数什么也不做 → ff ff ff ff
+                 // （标准只说 x 的值不确定；读到 ff 是这两个编译器的实测）
+```
+
+```text
+Z{}   x 的四个字节：00 00 00 00
+Z()   x 的四个字节：00 00 00 00
+Z     x 的四个字节：ff ff ff ff
+```
+
+[over.match.list] 只规定选哪个构造函数，不含零初始化；`Z{}` 的 x 一定是 0，靠的是 3.5 指定的值初始化。
+
+**例六：花括号里的 `{}` 不一定是空列表。**
+
+```cpp
+struct S {
+    S()                           { std::puts("  S()"); }
+    S(std::initializer_list<int>) { std::puts("  S(initializer_list<int>)"); }
+};
+
+S a{};     // 列表没有元素 → 3.5 → S()
+S b{{}};   // 列表有一个元素（内层的 {}），不是空列表 → 3.7 → 第 1 步选中 S(initializer_list<int>)
+S c({});   // 圆括号是直接初始化，{} 是构造函数的实参，不是初始化 c 的列表。
+           // {} 转 initializer_list<int> 是恒等转换，转成 S（拷贝、移动构造函数的形参）是用户定义转换，
+           // 前者更好 → S(initializer_list<int>)
+```
+
+```text
+S a{};
+  S()
+S b{{}};
+  S(initializer_list<int>)
+S c({});
+  S(initializer_list<int>)
+```
+
+**把例子对回两条路：**
+
+| 类型 | `T x{}`（经 [dcl.init.list]） | `f({})`（经 [over.ics.list]） |
+|---|---|---|
+| `A`：有默认构造函数，两个 initializer-list 构造函数 | 3.5 → `A()` | 跳过第 1 步 → `A()`，f 可行 |
+| `A2`：没有默认构造函数，两个 initializer-list 构造函数 | 错误：第 1 步二义 | 错误：第 1 步二义 |
+| `N`：没有默认构造函数，一个 initializer-list 构造函数 | 第 1 步选中它，size = 0 | 第 1 步选中它，f 可行 |
+| `D`：默认构造函数被删除，一个 initializer-list 构造函数 | 错误：3.5 → 被删除的 `D()` | 错误：同样选中被删除的 `D()` |
+
+本节另引的出处（其余条文见 Reference）：[class.default.ctor](https://eel.is/c++draft/class.default.ctor)、[over.match.class.deduct](https://eel.is/c++draft/over.match.class.deduct)、[CWG 990](https://cplusplus.github.io/CWG/issues/990.html)、[CWG 1229](https://cplusplus.github.io/CWG/issues/1229.html)、[N3262](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2011/n3262.htm)。
 
 ## Reference
 

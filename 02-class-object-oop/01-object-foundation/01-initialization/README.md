@@ -16,5 +16,5 @@
 | 笔记 | 内容 | 状态 |
 |---|---|---|
 | [01-initialization-basics.md](01-initialization-basics.md) | 初始化与赋值的区别，作用域、链接、存储期、生命周期与初始化的关系；初始化的分类（形式与种类）；默认、值、零初始化；拷贝、直接、列表、聚合初始化的定位 | 笔记完成 |
-| [02-initialization-forms.md](02-initialization-forms.md) | 拷贝初始化与直接初始化、列表初始化（含聚合初始化、initializer-list 构造函数优先）、`initializer_list` 的底层数组 | 笔记完成 |
+| [02-initialization-forms.md](02-initialization-forms.md) | 拷贝初始化与直接初始化、列表初始化（含聚合初始化、initializer-list 构造函数优先） | 笔记完成 |
 | [03-static-initialization-and-program-startup.md](03-static-initialization-and-program-startup.md) | 静态初始化与动态初始化，非局部变量和块作用域的静态、线程存储期变量的初始化顺序与时机，Linux 可执行文件的节与段，从加载到退出的时间线 | 笔记完成 |

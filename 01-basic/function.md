@@ -3,7 +3,7 @@ i# initializer_list 与临时对象
 ## 1. initializer_list 是什么
 
 - 一个**轻量句柄**：内部只存 `指针 + 长度`，本身**不拥有数据**。
-- 真正的数据存在编译器生成的**底层数组**里（一个 `const T[N]` 临时对象）。
+- 真正的数据存在编译器生成的**底层数组**里（一个 `const T[N]` 临时对象；现行草案和 cppreference 称 backing array）。
 
 ```cpp
 namespace std {
@@ -34,6 +34,8 @@ initializer_list 对象          底层数组 __arr
 - 元素**只读**（`const E*`），没有 `operator[]`，没有非 const 迭代器。
 - 按值传递只拷贝句柄（16 字节），元素数组不动 → 廉价，符合其值语义设计。
 
+> 条文：[dcl.init.list]/5（数组及其元素的初始化）、/6（数组的生命周期）；[initializer.list.syn]/1 的注（拷贝 `initializer_list` 不拷贝元素）。
+
 ## 2. 生命周期规则（核心）
 
 > 底层数组的"死亡时间"由**第一个直接绑定它的对象**决定，**一次性钉死，拷贝不传递**。
@@ -44,6 +46,7 @@ initializer_list 对象          底层数组 __arr
 |---|---|---|
 | 具名局部变量 `list{1,2,3}` | 该变量作用域结束 | ✅ 作用域内安全 |
 | 函数参数 `Bad(il l)` | 调用语句的分号 | ❌ 存成员/return 后悬空 |
+| 构造函数 mem-initializer 里的成员 `m{1,2,3}` | 构造函数返回（同绑定引用成员） | ❌ 标准判 ill-formed（见下面的反例） |
 
 ### 反例：悬空
 
@@ -57,6 +60,15 @@ b.use();             // 💥 lst_ 悬空 → UB
 ```
 
 关键：`{1,2,3}` 初始化的是**参数 `l`**（短命），`lst_` 只是拷了个指针，从未直接绑定花括号。
+
+成员直接用花括号初始化（没有参数这一层）也不行：在构造函数的 mem-initializer 里，数组只活到构造函数返回，等于把临时数组绑给引用成员，标准判 ill-formed（[dcl.init.list]/6 的例子）：
+
+```cpp
+struct A {
+    std::initializer_list<int> m;
+    A() : m{1, 2, 3} {}   // ❌ ill-formed：数组在构造函数返回时销毁，m 悬空
+};                        // clang 14 报错；g++ 11.4 默认不诊断，-Wextra 才警告
+```
 
 ### 正解：立即拷进容器
 
@@ -399,6 +411,18 @@ EvilContainer<int> x = { {1,2}, {3,4} };
 //   {3,4} → 参数 right（il 类型）→ 第5条物化
 ```
 若第5条消失：内层 `{1,2}` 无法物化成 initializer_list → 整个表达式编译失败，连 `vector{1,2,3}` 也会一起失效。
+
+第5条物化时，数组的每个元素由花括号里对应的元素**拷贝初始化**（[dcl.init.list]/5）：窄化转换在这里被禁（见 ④），元素类型的 `explicit` 构造函数也用不上。容器自己往已分配的存储里构造元素则是**直接初始化**（`std::allocator` 下 `allocator_traits::construct` 写 `::new (p) T(args...)`，C++20 起经 `std::construct_at`；自定义分配器的 `construct` 可以不同）：
+
+```cpp
+struct T { T() = default; explicit T(const T&) = default; };
+T a;
+std::vector<T> v;
+v.push_back(a);       // ✅ 容器内部直接初始化新元素
+T b = a;              // ❌ 拷贝初始化不能用 explicit 拷贝构造函数
+std::vector<T> w{a};  // ❌ 第6条先选中 initializer_list<T> 构造函数（同类型实参的转换序列是恒等转换，不看 explicit），
+                      //    第5条再拷贝初始化数组元素时失败；不会回退到别的构造函数
+```
 
 ### ③ initializer_list 构造函数会"劫持"普通构造函数（第6步内）
 
