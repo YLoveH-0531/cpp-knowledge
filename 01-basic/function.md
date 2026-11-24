@@ -1,4 +1,4 @@
-i# initializer_list 与临时对象
+# initializer_list 与临时对象
 
 ## 1. initializer_list 是什么
 

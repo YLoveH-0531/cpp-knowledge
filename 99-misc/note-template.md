@@ -102,8 +102,8 @@ Verifies:
 ## Before you commit
 
 - [ ] **Explain:** Why and What fit on one screen, and I can say them without looking.
-- [ ] **Model:** What contains a formula, a table or a diagram.
-- [ ] **Connect:** Relation says what breaks without it, what fixes that, and links at least one other note.
+- [ ] **Model:** What explains the core model clearly, in whatever form fits (formula, table, diagram, code or prose).
+- [ ] **Connect:** Relation says what breaks without it, what fixes that, and how the topic relates to other notes: link at least one note when a real connection exists; if the topic is independent, say why. Never invent a link to meet a count.
 - [ ] **Verify:** the Example was compiled and run, the real output is pasted, and every Verifies line matches a claim in the note.
 - [ ] **Format:** no markdownlint findings, for example `npx markdownlint-cli2 "NN-folder/topic.md"` with MD013 off.
 
