@@ -40,7 +40,6 @@
 | [01-initialization-basics.md](01-object-foundation/01-initialization/01-initialization-basics.md) | TODO | 笔记完成 |
 | [02-initialization-forms.md](01-object-foundation/01-initialization/02-initialization-forms.md) | TODO | 笔记完成 |
 | [03-static-initialization-and-program-startup.md](01-object-foundation/01-initialization/03-static-initialization-and-program-startup.md) | TODO | 笔记完成 |
-| [object-and-reference.md](01-object-foundation/object-and-reference.md) | TODO | 笔记完成 |
 | [storage-duration.md](01-object-foundation/storage-duration.md) | TODO | 笔记完成 |
 | [lifetime.md](01-object-foundation/lifetime.md) | TODO | 笔记完成 |
 | [declaration-and-definition.md](../07-language-mechanics/declaration-and-definition.md) | TODO | 笔记完成 |
@@ -50,6 +49,8 @@
 | [static-data-members.md](02-class-and-oop/static-data-members.md) | TODO | 笔记完成 |
 | [constructors-and-destructors.md](02-class-and-oop/constructors-and-destructors.md) | TODO | 构造部分已放入，析构待写 |
 | 运算符重载、继承、虚函数 | TODO | 待写 |
+
+object 与 reference 的内容已并入 [01-basic/pointer-reference-const.md](../01-basic/pointer-reference-const.md)。
 
 ## 读完应能回答
 

@@ -7,8 +7,9 @@
 | 笔记 | 内容 | 状态 |
 |---|---|---|
 | [01-initialization/](01-initialization/README.md) | 初始化专题：基础概念、初始化形式、静态初始化与程序启动（含 Linux 可执行文件的节与段） | 笔记完成 |
-| [object-and-reference.md](object-and-reference.md) | object、reference | 笔记完成 |
 | [storage-duration.md](storage-duration.md) | 存储期：静态、线程、自动、动态 | 笔记完成 |
 | [lifetime.md](lifetime.md) | 生命周期：对象和引用何时开始、何时结束 | 笔记完成 |
+
+object 与 reference 的内容已并入 [pointer-reference-const.md](../../01-basic/pointer-reference-const.md)。
 
 把这些概念在一个变量上走一遍的案例：[static-data-members.md](../02-class-and-oop/static-data-members.md)。

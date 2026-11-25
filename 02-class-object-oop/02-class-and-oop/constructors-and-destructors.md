@@ -160,7 +160,7 @@ std::pair<E, int> pr2{1, 2};            // 正确
 
 ## 6. 验证与关联
 
-- 验证：[lifetime-and-initialization-exp.cpp](../lifetime-and-initialization-exp.cpp) 实验 1 验证初始化与销毁的顺序（故意触发 `-Wreorder`）。
+- 验证：[lifetime-and-initialization-exp.cpp](https://github.com/YLoveH-0531/cpp-knowledge/blob/13499b4/02-class-object-oop/lifetime-and-initialization-exp.cpp) 实验 1 验证初始化与销毁的顺序（故意触发 `-Wreorder`）。该文件已从仓库删除，链接指向删除前的提交 13499b4。
 - 关联：
   - [lifetime.md](../01-object-foundation/lifetime.md)：对象的生命周期从初始化完成时开始；委托构造函数的情形见第 4 节。
   - [static-data-members.md](static-data-members.md)：静态数据成员不是对象的子对象，不走构造函数和成员初始化列表。
