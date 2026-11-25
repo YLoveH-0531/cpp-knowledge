@@ -381,7 +381,7 @@ void f1(const complex* x, const complex* y) { complex z = *x + *y; }   // withou
 void f2(const complex& x, const complex& y) { complex z = x + y; }     // with references: better
 ```
 
-He adds that to have both the functionality of pointers and that of references, one needs either two different types, as in C++, or two sets of operations on one type. References are also used for parameters and return values; [dcl.ref]/3 shows both. The rule that a non-const lvalue reference does not bind a temporary is not a leftover of that history: it is a deliberate choice (How, ii.1). Older Visual C++ releases did let it bind, and Microsoft's documentation lists the change as a breaking change ([Microsoft Learn](https://learn.microsoft.com/en-us/previous-versions/cfbk5ddc(v=vs.85))).
+He adds that to have both the functionality of pointers and that of references, one needs either two different types, as in C++, or two sets of operations on one type. The rule that a non-const lvalue reference does not bind a temporary is not a leftover of that history: it is a deliberate choice (How, ii.1).
 
 **Implementation (common implementation).** In the language, a reference is not a const pointer: it is unspecified whether a reference requires storage ([dcl.ref]/4). Stroustrup: "The obvious implementation of a reference is as a (constant) pointer that is dereferenced each time it is used. It doesn't do much harm to think about references that way, as long as one remembers that a reference isn't an object that can be manipulated the way a pointer is" (*The C++ Programming Language*, 4th ed., §7.7.1). So "a constant pointer that is dereferenced automatically" is a fair mental model of the implementation, but it is not a statement about the language.
 
@@ -417,3 +417,55 @@ He adds that to have both the functionality of pointers and that of references, 
   - [basic.compound](https://eel.is/c++draft/basic.compound), [basic.stc](https://eel.is/c++draft/basic.stc) (current draft; N4659 has the same text in [basic.compound]/3 and [basic.stc]/4): the four kinds of pointer value; pointer values become invalid when storage duration ends; indirection through an invalid pointer value is undefined
   - [lex.string](https://timsong-cpp.github.io/cppwp/n3337/lex.string), [diff.lex](https://timsong-cpp.github.io/cppwp/n3337/diff.lex), [stmt.ranged](https://timsong-cpp.github.io/cppwp/n3337/stmt.ranged): string literals; their change in C++11; the range-based `for` expansion
 - Defect reports and proposals: [CWG 2012](https://cplusplus.github.io/CWG/issues/2012.html), [CWG 1438](https://cplusplus.github.io/CWG/issues/1438.html), [P2718R0](https://wg21.link/p2718r0)
+
+也就是说，标准在讨论表达式时，会把引用“剥掉”，只看被引用的类型 T。但是，表达式的值类别（左值/将亡值/纯右值）会保留，引用的信息主要通过值类别体现出来。
+
+例子
+cpp
+int i = 0;
+int& r = i;
+变量 r 的声明类型是 int&。但表达式 r 的类型不是 int&，而是 int；它的值类别是左值。
+
+cpp
+r = 1;      // r 是左值，类型 int
+&r;         // 得到 int*，指向 i
+再比如函数返回引用：
+
+cpp
+int& f();
+函数 f 的返回类型是 int&。但表达式 f() 的类型会被调整为 int，它的值类别是左值：
+
+cpp
+f() = 10;   // 可以，因为 f() 是左值
+右值引用也类似：
+
+cpp
+int&& g();
+g() 的返回类型是 int&&，但表达式 g() 的类型是 int，值类别是将亡值。
+
+为什么要这样规定
+因为引用不是对象，表达式描述的是“计算的结果”。引用语义主要体现在：
+
+这个表达式是不是左值/将亡值；
+
+它能绑定到什么引用；
+
+它能不能被修改；
+
+它是否可移动。
+
+而不是让“表达式的类型”本身变成 T&。所以标准规定：分析表达式时先把引用类型剥掉，得到 T，再看值类别。
+
+和 decltype 的区别
+decltype 有特殊规则，不能简单套用“表达式类型永远不是引用”：
+
+cpp
+int i = 0;
+int& r = i;
+
+decltype(r)   // int&，因为 r 是未加括号的 id-expression，取声明类型
+decltype((r)) // int&，因为 (r) 是左值表达式，类型 int，左值 -> int&
+这里 decltype 会利用表达式的类型和值类别推导引用类型，但这是 decltype 的专门规则，不改变“普通表达式类型不是引用类型”这个一般规定。
+
+一句话总结
+引用变量/函数返回引用可以具有引用类型，但一旦形成表达式，表达式的类型会被调整为被引用类型 T；引用性通过值类别保留，而不是通过表达式类型保留。
