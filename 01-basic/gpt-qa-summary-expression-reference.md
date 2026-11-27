@@ -1,10 +1,10 @@
 # 表达式、值类别与引用：GPT 问答的整理
 
-整理自 11-26 贴来的 GPT 回答：先四段，后补三段（其中一段和回答 4 完全相同，没有重复整理），最后又补两段，共八段。八段的问题依次是：引用与“剥掉引用”；值类别怎么确定；`int&& rr = 20;`、复合表达式、类型描述什么；`int&` 与 `int&&` 的绑定、`int i = 10;` 算不算表达式；变量和函数的类型、`int&` 与 `int&&` 为什么这样设计；`const int&` 与 `int&&` 都能绑右值时重载决议选谁；三个值类别各表示什么、glvalue 和 rvalue 为什么存在；右值引用变量能不能初始化 `int&`、是不是“引用的引用”。
+整理自 11-26 贴来的 GPT 回答：先四段，后补三段（其中一段和回答 4 完全相同，没有重复整理），最后又补两段，共八段。八段的问题依次是：引用与“剥掉引用”；值类别怎么确定；`int&& rr = 20;`、复合表达式、类型描述什么；`int&` 与 `int&&` 的绑定、`int i = 10;` 算不算表达式；变量和函数的类型、`int&` 与 `int&&` 为什么这样设计；`const int&` 与 `int&&` 都能绑右值时重载决议选谁；三个值类别各表示什么、glvalue 和 rvalue 为什么存在；右值引用变量能不能初始化 `int&`、是不是“引用的引用”。11-27 又贴来七段引用初始化的回答，整理成第九节。
 
 - 核对口径是 N3337（C++11），和 C++17、C++20 措辞不同的地方单独注明。
 - 文中的结果都用 g++ 11.4 和 clang 14（`-std=c++11 -Wall -Wextra -pedantic`）实测过，两家一致。
-- 带【更正 n】的地方，GPT 的原话不准或不严；正文写的是按标准改过的说法，理由集中在第八节。
+- 带【更正 n】的地方，GPT 的原话不准或不严；正文写的是按标准改过的说法，理由集中在第八节（更正 1–11）和 9.11（更正 12–18）。
 
 ## 先记住这十句话
 
@@ -501,3 +501,313 @@ GPT 的核心结论都成立，下面是措辞不准或不严的地方，编号�
 - 没核对：回答 5 提到 isocpp.org 和 Microsoft Learn 的页面，没有给地址，没法核对；对应的事实我用了标准条文和 cppreference 页的原文。
 
 3.2 的例子、3.4 和第五节的两张表，类型和值类别都是对每个表达式用 `decltype((e))` 读出来的（读法见 3.4）；文中的代码块都编译运行过。
+
+## 九、引用初始化的完整判断阶梯：[dcl.init.ref]/5 逐条读
+
+11-27 又贴来七段 GPT 回答（先五段，后补两段，下面称回答 1 到 7）。问题依次是：①四步判断的先后为什么不能乱，“第三条”到底绑什么；②第二条（5.2）的原文是什么，C++14 和 C++17 各条怎么走；③reference-compatible 是什么，`const int& r = n` 属于哪一条，为什么先查引用的种类；④“lvalue/rvalue × 四种引用”的表，以及“第一条先选中、排除 lvalue 那一行，不满足再进 rvalue 那一行”的理解对不对；⑤`double&& r = i` 是不是“先生成 xvalue 再绑定”；⑥`double&& r1 = d` 违反哪一条，5.2.2 末尾的限制是不是只针对 5.2.2.2；⑦“右值引用不能绑 lvalue”这个记法要不要加限定。第六节只给了简版四步，这里补完整：原文、每一条的例子、版本差别。
+
+- 块引用是原文，前一行写出处；“译”是我的翻译，其余是说明。引文里的交叉引用号和脚注略去。
+- 核对口径仍是 N3337（C++11）。N4140（C++14）、N4659（C++17）的差别集中在 9.10。条文小号（5.1.1 等）取自 timsong-cpp 网页，N3337、N4140、N4659 三个版本的编号都对过；N3337 源文件里这些条没有编号（更正 8）。
+- 例子和表里的写法都编译过：`// error` 的行取消注释后都报错，其余都通过（g++ 11.4 和 clang 14，c++11/14/17/20，共 8 种组合，结果一致）；9.9 的程序还运行过，输出与文中一致。
+
+### 9.1 先备：两组术语
+
+引用指向的类型写成 “cv1 T1”，初始化器的类型写成 “cv2 T2”。`const double& r = i;` 里，“cv1 T1” 是 `const double`，“cv2 T2” 是 `int`。
+
+**原文**（N3337 [dcl.init.ref]/4）：
+
+> Given types “cv1 T1” and “cv2 T2,” “cv1 T1” is reference-related to “cv2 T2” if T1 is the same type as T2, or T1 is a base class of T2. “cv1 T1” is reference-compatible with “cv2 T2” if T1 is reference-related to T2 and cv1 is the same cv-qualification as, or greater cv-qualification than, cv2.
+
+**译**：T1 与 T2 是同一类型，或 T1 是 T2 的基类，叫 reference-related（引用相关）。在此基础上，cv1 的 cv 限定和 cv2 相同或更多，才叫 reference-compatible（引用兼容）。只许加 cv，不许丢 cv。
+
+| cv1 T1（引用指向） | cv2 T2（初始化器） | related | compatible |
+|---|---|---|---|
+| `int` | `int` | 是 | 是 |
+| `const int` | `int` | 是 | 是（加了 const） |
+| `int` | `const int` | 是 | 否（丢了 const） |
+| `A`（基类） | `B`（派生类） | 是 | 是 |
+| `B` | `A` | 否 | 否 |
+| `double` | `int` | 否 | 否 |
+
+同一段的末句还规定：T1 是 T2 的基类时，如果这个基类不可访问或有歧义，需要这个绑定的程序非法。
+
+“bind directly”（直接绑定）也是术语，在第 5 段末句：
+
+> In all cases except the last (i.e., creating and initializing a temporary from the initializer expression), the reference is said to bind directly to the initializer expression.
+
+**译**：除了最后一种情形（创建临时对象并用初始化器初始化它），其余都叫直接绑定。
+
+也就是说，直接绑定是引用绑到初始化器的值，或转换函数的结果上，没有再按 T1 造一个新的临时对象来拷贝初始化。初始化器本身可以就是个临时对象（比如 `f()` 返回的类对象），绑它仍是直接绑定。
+
+### 9.2 阶梯总览
+
+“Otherwise” 把各条连成一条链：前面所有条都不成立，才看下一条。顺序是标准定死的，不是几种方式任选。
+
+| 条 | 看什么 | 成立时 | cppreference 里的位置 |
+|---|---|---|---|
+| 5.1 | 引用是 lvalue 引用；初始化器是 lvalue（不是位域）且 reference-compatible，或类类型经转换函数得到 lvalue | 直接绑定，结束 | Direct binding 的前两项 |
+| 5.2 | 否则，引用本身有没有资格：non-volatile 的 `const T&`，或 `T&&` | 有资格才往下看，没有就非法 | Direct binding 里夹着的 “…the program is ill-formed” 那一项 |
+| 5.2.1 | 初始化器是 xvalue、class prvalue、array prvalue 或 function lvalue 且 compatible，或类类型经转换函数得到这些 | 直接绑定，结束 | Direct binding 的后两项（按 until C++17、since C++17 分开写） |
+| 5.2.2 | 否则 | 造临时对象，引用绑到它（不算直接绑定）；末尾有两条限制 | Indirect binding，第二句 “In this case, T cannot be reference-related to U.” |
+
+5.1 和 5.2.1 各有两种：初始化器本身就是（5.1.1、5.2.1.1），或类类型经转换函数得到（5.1.2、5.2.1.2）。
+
+通俗地说是四道关：①能不能直接绑 lvalue；②不能的话，这种引用有没有资格去接“不是现成 lvalue 的东西”（`const T&` 和 `T&&` 有，`T&` 没有）；③能不能直接绑右值一侧；④都不行才造临时对象，造的时候对 `T&&` 另有一道限制。cppreference 的 Reference initialization 页开头也是这个次序：“Direct binding is considered first, followed by indirect binding, if neither binding is available, the program is ill-formed.” GPT 说的“间接绑定”就是这页的 Indirect binding；[dcl.init.ref] 里没有这个词，只有 bind directly【更正 15】。
+
+### 9.3 5.1：lvalue 引用绑 lvalue
+
+**原文**（N3337 [dcl.init.ref]/5.1）：
+
+> If the reference is an lvalue reference and the initializer expression
+>
+> - is an lvalue (but is not a bit-field), and “cv1 T1” is reference-compatible with “cv2 T2,” or
+> - has a class type (i.e., T2 is a class type), where T1 is not reference-related to T2, and can be implicitly converted to an lvalue of type “cv3 T3,” where “cv1 T1” is reference-compatible with “cv3 T3” (this conversion is selected by enumerating the applicable conversion functions and choosing the best one through overload resolution),
+>
+> then the reference is bound to the initializer expression lvalue in the first case and to the lvalue result of the conversion in the second case (or, in either case, to the appropriate base class subobject of the object).
+
+**译**：引用是 lvalue 引用，并且初始化器 ①是 lvalue（不能是位域）且 reference-compatible；或者 ②是类类型，T1 与 T2 不 reference-related，能经转换函数得到一个 lvalue（原文脚注：这要求转换函数返回引用类型），且与它 reference-compatible。① 绑到初始化器本身，② 绑到转换结果；是基类的话，绑到基类子对象。
+
+`rd`、`rcd`、`ra`、`ir` 四行是标准 5.1 的原例（`B` 的转换函数我补了函数体），其余几行是我加的：
+
+```cpp
+double d = 2.0;
+double& rd = d;                 // rd refers to d
+const double& rcd = d;          // rcd refers to d
+const int cn = 0;
+const int& rcc = cn;            // OK: same cv-qualification
+// int& rc = cn;                // error: would drop const, not reference-compatible
+
+struct A { };
+int g;
+struct B : A { operator int&() { return g; } } b;
+A& ra = b;                      // ra refers to A subobject in b
+int& ir = B();                  // ir refers to the result of B::operator int&
+```
+
+- 5.1 只接住，不排除：能直接绑的 lvalue 它接住，接不住的（包括所有 rvalue 引用）都往下掉。把 “lvalue → `T&&`” 挡住的不是它，是 5.2.2 的末句（9.6）。
+- 第二种不要求初始化器本身是 lvalue：`B()` 是 prvalue，也能绑 `int&`，绑的是转换函数返回的 lvalue。
+
+### 9.4 5.2：先查引用本身有没有资格
+
+**原文**（N3337 [dcl.init.ref]/5.2）：
+
+> Otherwise, the reference shall be an lvalue reference to a non-volatile const type (i.e., cv1 shall be const), or the reference shall be an rvalue reference.
+
+**译**：否则，引用必须是指向 non-volatile const 类型的 lvalue 引用（即 cv1 必须是 const），或者必须是 rvalue 引用。
+
+三点：
+
+1. 它查的是**引用的种类**，不看初始化器，也不是一种绑定方式。通过只表示可以接着看 5.2.1、5.2.2，后面仍可能失败（`int&& r = n;`）。GPT 回答 1 的流程图把它画成独立的“第二步”，回答 2 自己改了口，说它是“前置资格条件”，以后者为准【更正 12】。
+2. “Otherwise” 接的是 5.1 没接住的**一切**，包括 lvalue 初始化器（`const double& r = i;`、`double&& r = i;`）。所以“5.2 以后只处理 rvalue”不对。
+3. 放行的是 `const T&`、`T&&`、`const T&&`。`T&`、`volatile T&`、`const volatile T&` 走到这里（5.1 没接住）就非法，没有别的办法了。
+
+前两行是标准的原例，注释也是原文：
+
+```cpp
+int i = 2;
+// double& rd2 = 2.0;           // error: not an lvalue and reference not const
+// double& rd3 = i;             // error: type mismatch and reference not const
+// const volatile int& rv = 10; // error: the referenced type is volatile
+const double& rcd = i;          // OK: passes 5.2, then 5.2.2 creates a temporary double
+```
+
+### 9.5 5.2.1：直接绑到右值一侧
+
+**原文**（N3337 [dcl.init.ref]/5.2.1）：
+
+> If the initializer expression
+>
+> - is an xvalue, class prvalue, array prvalue or function lvalue and “cv1 T1” is reference-compatible with “cv2 T2”, or
+> - has a class type (i.e., T2 is a class type), where T1 is not reference-related to T2, and can be implicitly converted to an xvalue, class prvalue, or function lvalue of type “cv3 T3”, where “cv1 T1” is reference-compatible with “cv3 T3”,
+>
+> then the reference is bound to the value of the initializer expression in the first case and to the result of the conversion in the second case (or, in either case, to an appropriate base class subobject). In the second case, if the reference is an rvalue reference and the second standard conversion sequence of the user-defined conversion sequence includes an lvalue-to-rvalue conversion, the program is ill-formed.
+
+**译**：初始化器 ①本身是 xvalue、class prvalue、array prvalue 或 function lvalue，且 reference-compatible；或者 ②是类类型，T1 与 T2 不 reference-related，能经转换函数得到 xvalue、class prvalue 或 function lvalue，且与它 reference-compatible。① 绑到初始化器的值，② 绑到转换结果；是基类的话，绑到基类子对象。在 ② 里，如果引用是 rvalue 引用，而转换序列的第二个标准转换含 lvalue-to-rvalue 转换，程序非法。
+
+四类初始化器各绑到哪：
+
+| 初始化器 | 绑到 | 例 |
+|---|---|---|
+| xvalue | 它指代的那个对象，不再新建 | `static_cast<int&&>(i2)` 绑到 `i2` |
+| class prvalue | 这个类对象；引用类型是基类时，绑到其中的基类子对象 | `B f()` 返回的对象，`const A& rca2 = f();` 绑到其中的 `A` 子对象，没有另造一个 `A` |
+| array prvalue | 这个数组对象，少见 | `Arr{1, 2, 3}`（`Arr` 是 `int[3]`） |
+| function lvalue | 这个函数 | `void (&&rf)() = func;` |
+
+到 `rri2` 为止是标准的原例，注释也是原文（`f` 和 `X` 的转换函数我补了函数体），后面的 `Arr`、`func` 是我加的：
+
+```cpp
+struct A { };
+struct B : A { };
+B f() { return B(); }
+const A& rca2 = f();                // bound to the A subobject of the B rvalue.
+A&& rra = f();                      // same as above
+struct X {
+    operator B() { return B(); }
+    operator int&() { static int v = 0; return v; }
+} x;
+const A& r = x;                     // bound to the A subobject of the result of the conversion
+int i2 = 42;
+int&& rri = static_cast<int&&>(i2); // bound directly to i2
+B&& rrb = x;                        // bound directly to the result of operator B
+// int&& rri2 = X();                // error: lvalue-to-rvalue conversion applied to the result of operator int&
+
+typedef int Arr[3];
+Arr&& ra2 = Arr{1, 2, 3};           // array prvalue
+void func() { }
+void (&&rf)() = func;               // function lvalue binds an rvalue reference
+```
+
+- **C++11/14 的这一条不含非类 prvalue**：`const int& r = 10;`、`int&& r = 10;` 不在这里，走 5.2.2；C++17 起才改成 “an rvalue”，并进来（9.10）。GPT 把这一条说成“右值一侧的直接绑定”（回答 1 的流程图、回答 4），在 C++11/14 里不能理解成“所有 rvalue”【更正 14】。
+- function lvalue 能绑 `T&&` 是这一条的特例，标准只在列表里写了它，没写理由。GPT 的解释是“因为函数不是对象，不存在普通对象意义上的移动、临时对象创建等问题”，这是它的推断，不要当结论记。它举的 array prvalue 例子 `int arr[3]; int (&r)[3] = arr;` 其实是 array lvalue，走 5.1，上面的 `Arr{1, 2, 3}` 才是 array prvalue【更正 16】。
+- 绑 class prvalue 时，那个类对象本身是临时对象（`f()` 的结果），引用会延长它的生命期。所以“直接绑定”不等于“没有临时对象”，只是没有再按 T1 造一个新的临时对象来拷贝初始化。
+
+### 9.6 5.2.2：造临时对象，和末尾的两条限制
+
+**原文**（N3337 [dcl.init.ref]/5.2.2）：
+
+> Otherwise, a temporary of type “cv1 T1” is created and initialized from the initializer expression using the rules for a non-reference copy-initialization. The reference is then bound to the temporary. If T1 is reference-related to T2, cv1 shall be the same cv-qualification as, or greater cv-qualification than, cv2. If T1 is reference-related to T2 and the reference is an rvalue reference, the initializer expression shall not be an lvalue.
+
+**译**：否则，创建一个 “cv1 T1” 类型的临时对象，用初始化器按非引用的拷贝初始化规则初始化它，引用绑到这个临时对象。如果 T1 与 T2 reference-related，cv1 的 cv 限定必须和 cv2 相同或更多。如果 T1 与 T2 reference-related，并且引用是 rvalue 引用，初始化器不能是 lvalue。
+
+最后一句就是“lvalue 不能绑 `T&&`”的出处（N4140、N4659 里是 5.2.2.4）。它只拦 related 的类型，不相关的（`int` → `double`）不拦。标准的例子成对给，注释也是原文（`rcv`、`rrd4`、`rrd5` 三行是我加的）：
+
+```cpp
+const double& rcd2 = 2;         // rcd2 refers to temporary with value 2.0
+double&& rrd = 2;               // rrd refers to temporary with value 2.0
+const volatile int cvi = 1;
+const volatile int& rcv = cvi;  // OK: same cv-qualification
+// const int& r2 = cvi;         // error: type qualifiers dropped
+double d2 = 1.0;
+// double&& rrd2 = d2;          // error: copying lvalue of related type
+int i3 = 2;
+double&& rrd3 = i3;             // rrd3 refers to temporary with value 2.0
+
+double&& rrd4 = 2.0;                        // OK: a prvalue, not an lvalue
+double&& rrd5 = static_cast<double&&>(d2);  // OK: an xvalue, bound directly to d2
+```
+
+- `rrd2` 被拒：`double` 与 `double` related，`d2` 是 lvalue。同一个 `d2` 换成 xvalue（`rrd5`）或 prvalue（`rrd4`）就通过：末句只拦 lvalue，`rrd5` 直接绑到 `d2`，`rrd4` 绑到临时对象。`rrd3` 通过：`double` 与 `int` 不 related。
+- 基类也算 related：`struct B : A {}` 时，`B b; A&& r = b;` 非法，`A&& r = B();` 合法（走 5.2.1）。
+- 编号随版本变：N3337 的 5.2.2 不分小条；N4140、N4659 拆成 5.2.2.1 到 5.2.2.4（两个版本的差别见 9.10 的表）。以 N4140 为例：5.2.2.1（T1 是类类型：用户定义转换）和 5.2.2.2（T1 不是类类型：造临时对象）是两种做法，其后 “If T1 is reference-related to T2:” 引出 5.2.2.3（cv1 不少于 cv2）和 5.2.2.4（`T&&` 不能配 lvalue）。后两条管整个 5.2.2，不只属于 5.2.2.2，两种做法都要过这一关：T1 是类类型时也一样，上面基类那条的 `B b; A&& r = b;` 就被拒。GPT 引的 “5.2.2.2”“5.2.2.4” 是 N4140 的编号【更正 17】。
+- 末句是对程序的静态要求（shall）：`double&& r = d2;` 整句非法，不是造出临时对象之后才发现错。标准对 `rrd2` 的说明只有注释里的 “copying lvalue of related type”，没有再写理由；GPT 回答 6 说它是“为了防止在间接绑定过程中，通过创建临时对象，绕过原本的引用绑定限制”，这是设计意图，没有出处，不要当结论记【更正 18】。
+
+### 9.7 用阶梯走几个例子
+
+下面 `n`、`i` 是 `int` 变量，`struct B : A { };`；按 C++11/14 的走法，C++17 的差别见 9.10。
+
+| 代码 | 5.1 | 5.2 | 5.2.1 | 5.2.2 | 结果 |
+|---|---|---|---|---|---|
+| `int& r = n;` | 成立 | | | | 直接绑定到 `n` |
+| `int& r = 10;` | 不成立：不是 lvalue | 不成立：`int&` 既不是 `const T&`，也不是 `T&&` | | | 非法 |
+| `const int& r = 10;` | 不成立 | 放行 | 不成立：`int` 的 prvalue 不在列表里 | 成立：造临时 `int` | 合法，绑到临时对象 |
+| `int&& r = std::move(n);` | 不成立：不是 lvalue 引用 | 放行 | 成立：xvalue | | 直接绑定到 `n` |
+| `int&& r = n;` | 不成立 | 放行 | 不成立：`n` 是非类类型的 lvalue | 被末句拦住：`int` 与 `int` related，`n` 是 lvalue | 非法 |
+| `double&& r = i;` | 不成立 | 放行 | 不成立：`i` 是非类类型的 lvalue | 成立：造临时 `double`；与 `int` 不 related，末句不拦 | 合法，绑到临时 `double` |
+| `A&& r = B();` | 不成立 | 放行 | 成立：class prvalue | | 直接绑定到 `A` 子对象 |
+| `B b; A&& r = b;` | 不成立 | 放行 | 不成立：`b` 是 lvalue | 被末句拦住：`A` 是 `B` 的基类，related，`b` 是 lvalue | 非法 |
+
+回答 6 用 N4140 的小号把 `double&& r1 = d;` 的路径写细了，`int&& r = n;` 同理：5.1 不成立（不是 lvalue 引用）；5.2 通过（是 rvalue 引用）；5.2.1.1 不成立（`n` 是 lvalue，不在列表里）；5.2.1.2 不成立（`int` 不是类类型）；5.2.2.2 进入（T1 不是类类型，要造临时对象）；5.2.2.3 通过（cv 相同）；5.2.2.4 违反（引用是 rvalue 引用，初始化器是 lvalue），非法。
+
+### 9.8 “lvalue/rvalue × 四种引用”的表：只在 related 时成立
+
+常见的那张表（lvalue 一行 yes、yes、no、no，rvalue 一行 no、yes、yes、yes）是对的，但它只是 related 这一类的结果。补上不 related 的，是这样（每格都实测过）：
+
+| 初始化器 | `T&` | `const T&` | `T&&` | `const T&&` |
+|---|---|---|---|---|
+| related（同类型或基类）的 lvalue | 可以（5.1） | 可以（5.1） | 不行（5.2.2 末句） | 不行（5.2.2 末句） |
+| related 的 rvalue | 不行（5.2） | 可以 | 可以 | 可以 |
+| 不 related（`int` → `double`）的 lvalue 或 rvalue | 不行（5.2） | 可以，临时对象 | 可以，临时对象 | 可以，临时对象 |
+
+- 5.1 没有“排除”任何东西。第一行左边两格是 5.1 接住的；右边两格的“不行”，是 9.6 里那句 “…the initializer expression shall not be an lvalue” 拦的。
+- “lvalue 一行不满足，就进 rvalue 一行”也不准：5.2 的 “Otherwise” 接的是 5.1 没接住的一切，lvalue 也会走到后面。对不 related 的类型，lvalue 和 rvalue 没有差别，都造临时对象，这就是 `double&& r = i;` 合法的原因。
+- 所以“右值引用不能绑 lvalue”要加限定。回答 7 的说法是：对于普通对象，右值引用不能直接绑 lvalue，但 lvalue 可以经类型转换得到右值或临时对象，再初始化右值引用，function lvalue 是例外。方向对，写具体些。不 related 的类型，lvalue 有两条路绑 `T&&`：①造临时对象（`double&& r = i;`，5.2.2）；②类类型的 lvalue 经转换函数得到 xvalue、class prvalue 或 function lvalue（`B&& rrb = x;`，5.2.1 的第二种，代码在 9.5；转换函数返回 lvalue 的不行，`int&& rri2 = X();`）。related 的类型只有一个例外：③function lvalue 本身（`void (&&rf)() = func;`，5.2.1 的第一种）。其余 related 的 lvalue 都不行（9.6 的末句），就是表第一行右边两格。
+- 表的前提是 cv1 不少于 cv2。`const T` 的 class prvalue、xvalue 绑 `T&&` 要丢 const，非法（`A&& r = fca();`，`fca` 返回 `const A`）；非类 prvalue 的 cv 在表达式层面就被丢掉了，所以 `const int fci(); int&& r = fci();` 合法（N3337 [basic.lval]/4；N4140、N4659 是 [expr]/6）。GPT 回答 4 说“`const T` 类型的右值不能绑 `T&&`”说宽了【更正 13】。
+
+一句话的模型：标准先试最直接的绑定（5.1）；不行，就按引用的种类筛一遍（5.2）；再试直接绑右值一侧（5.2.1）；最后才造临时对象（5.2.2），造的时候拦住“related 的 lvalue 绑 `T&&`”。
+
+### 9.9 `double&& r = i`：初始化来源和绑到的对象
+
+按 C++11 的阶梯走（9.7 表里那一行）：`r` 绑到一个新的临时 `double`（值是 `2.0`），不是 `i`。要分清两件事：引用是用什么表达式初始化的，和它最后绑到哪个对象。`double&& r = i;` 用 lvalue `i` 初始化，绑到的是新临时对象；`int&& s = std::move(j);` 用 xvalue 初始化，绑到的就是 `j`。程序里的 `a`、`b` 用 `const` 引用演示同一件事（`const int&` 直接绑 `n`，`const double&` 造临时对象）：
+
+```cpp
+#include <iostream>
+#include <utility>
+
+int main() {
+    int n = 1;
+    const int& a = n;       // bound directly to n
+    const double& b = n;    // bound to a temporary double
+    n = 5;
+    std::cout << a << ' ' << b << '\n';
+
+    int i = 2;
+    double&& r = i;         // a temporary double, not i
+    r = 3.5;
+    std::cout << i << ' ' << r << '\n';
+
+    int j = 2;
+    int&& s = std::move(j); // bound directly to j
+    s = 7;
+    std::cout << j << '\n';
+}
+```
+
+```text
+5 1
+2 3.5
+7
+```
+
+`a` 直接绑到 `n`，`n` 改成 5 后读到 5；`b` 绑的是临时 `double`，还是 1。`r = 3.5` 改的是临时对象，`i` 不变；`s = 7` 改的就是 `j`。
+
+回答 5 的问题是：是不是“先生成一个 xvalue，再绑到这个 xvalue 上”。这是 C++17 的说法：
+
+**原文**（N4659 [dcl.init.ref]/5.2.2.2）：
+
+> Otherwise, the initializer expression is implicitly converted to a prvalue of type “cv1 T1”. The temporary materialization conversion is applied and the reference is bound to the result.
+
+**原文**（N4659 [conv.rval]/1）：
+
+> A prvalue of type T can be converted to an xvalue of type T. This conversion initializes a temporary object of type T from the prvalue by evaluating the prvalue with the temporary object as its result object, and produces an xvalue denoting the temporary object.
+
+**译**：先把初始化器隐式转换成 “cv1 T1” 类型的 prvalue（`i` 转成值为 `2.0` 的 `double` prvalue），再做 temporary materialization：用这个 prvalue 初始化一个临时对象，并得到指代这个临时对象的 xvalue，`r` 绑到这个 xvalue。C++11/14 的原文（9.6）没有提 xvalue，只说创建临时对象再绑定，两种写法的结果相同。
+
+### 9.10 C++17 起有什么变化
+
+**原文**（N4659 [dcl.init.ref]/5.2.1：第一项，以及两项之后的一段）：
+
+> is an rvalue (but not a bit-field) or function lvalue and “cv1 T1” is reference-compatible with “cv2 T2”, or
+>
+> …
+>
+> then the value of the initializer expression in the first case and the result of the conversion in the second case is called the converted initializer. If the converted initializer is a prvalue, its type T4 is adjusted to type “cv1 T4” and the temporary materialization conversion is applied. In any case, the reference is bound to the resulting glvalue (or to an appropriate base class subobject).
+
+**译**：5.2.1.1 的初始化器类别改成 “rvalue（非位域）或 function lvalue”；符合条件的初始化器（或转换结果）叫 converted initializer，它如果是 prvalue，先按引用的 cv 调整类型，再做 temporary materialization，引用绑到得到的 glvalue 上。
+
+| 项 | C++11（N3337） | C++14（N4140） | C++17（N4659） |
+|---|---|---|---|
+| 5.1、5.2 | 实质相同 | 同左 | 同左 |
+| 5.2.1 初始化器类别 | xvalue、class prvalue、array prvalue、function lvalue | 同左，xvalue 加 “but not a bit-field” | rvalue（非位域）或 function lvalue |
+| 5.2.1 怎么绑 | 绑到初始化器的值 | 同左 | prvalue 先 temporary materialization，再绑到得到的 glvalue |
+| 5.2.2 | 一条：造临时对象并拷贝初始化，后接两条限制 | 拆成 5.2.2.1（T1 是类类型）、5.2.2.2（T1 不是类类型）、5.2.2.3、5.2.2.4（两条限制） | 5.2.2.1：T1 或 T2 是类类型且不 related，用户定义转换；5.2.2.2：否则转成 prvalue 再实质化；5.2.2.3、5.2.2.4 同左 |
+| `int&& r = 10;` | 5.2.2，造临时对象，不算直接绑定 | 同左 | 5.2.1，直接绑定（经实质化） |
+| 末句 “bind directly” 里排除的“最后一种” | creating and initializing a temporary from the initializer expression | 同左 | implicitly converting the initializer expression to the underlying type of the reference |
+
+同一段代码在 C++11 和 C++17 下都合法，临时对象的生命期也一样（延长到引用的生命期），变的是标准的描述方式，和 “是不是直接绑定” 的分类。第六节的“版本差别”讲了 prvalue 整体的调整。
+
+- N4659 [dcl.init.ref]/4 还给 reference-compatible 加了一种：T2 是 “noexcept function”、T1 是 “function”，且函数类型其余相同。对象类型不受影响。
+- C++20 及以后：N4861 起 reference-related 改用 “similar”，5.2 改写成 “Otherwise, if the reference is an lvalue reference to a type that is not const-qualified or is volatile-qualified, the program is ill-formed.”；现行草案把 5.2.2 末尾的两条限制换成 5.4 开头的一句：“Otherwise, T1 shall not be reference-related to T2.” cppreference 的 Indirect binding 里也有这一句：“In this case, T cannot be reference-related to U.”
+
+### 9.11 GPT 回答里需要更正的地方（接第八节的编号）
+
+| # | GPT 的说法（出处） | 问题 | 依据 |
+|---|---|---|---|
+| 12 | 回答 1 的流程图把 5.2 画成独立的“第二步：非 const 或 volatile 的 lvalue 引用 → 非法”；回答 2 自己改口，说它是“前置资格条件” | 以改口后的为准。5.2 查引用的种类，不看初始化器，不是绑定方式。“非 const 或 volatile 的 lvalue 引用”也含糊，原文是 “lvalue reference to a non-volatile const type” 以外的 lvalue 引用 | [dcl.init.ref]/5.2 |
+| 13 | “`const T` 类型的右值不能绑 `T&&`”（回答 4） | 只对 class prvalue 和 xvalue 成立；非类 prvalue 的 cv 被丢掉，`const int fci(); int&& r = fci();` 合法 | N3337 [basic.lval]/4；N4140、N4659 [expr]/6 |
+| 14 | 5.2.1 是“rvalue 一侧的直接绑定”（回答 1 流程图的第③步；回答 4：“5.2.1 确实主要处理右值一侧的绑定”） | 在 C++11/14 里，“右值一侧”不等于所有 rvalue：5.2.1 的列表不含非类 prvalue，`int&& r = 10;`、`const int& r = 10;` 走 5.2.2。C++17 起才改成 “an rvalue” | 5.2.1.1 的各版原文（9.10） |
+| 15 | “间接绑定”（回答 1、3、5） | [dcl.init.ref] 里没有这个词，只有 bind directly，创建临时对象那一种“不算”。cppreference 的 Reference initialization 页用 Direct binding / Indirect binding 作小节名，所以这个说法有出处，出处是 cppreference，不是标准；笔记里用这个词要写明这一点 | [dcl.init.ref]/5 末句；cppreference |
+| 16 | 回答 1 举 `int arr[3]; int (&r)[3] = arr;` 当 array prvalue 的例子；说 function lvalue 能绑 `T&&` 是“因为函数不是对象，不存在普通对象意义上的移动、临时对象创建等问题” | 前者是 array lvalue，走 5.1（GPT 随后也这么说）。后者是 GPT 的推断，标准只在 5.2.1 的列表里写了 function lvalue，没写理由，不要当结论记 | [dcl.init.ref]/5.2.1 |
+| 17 | 各回答引的小号（5.1.1、5.2.1.1、5.2.2.2、5.2.2.4 等） | 对得上 N4140 的网页编号，不是错；但 N3337 的 5.2.2 不分小条，N4659 的 5.2.2.2 内容已变，引用时要写版本 | 9.6、9.10；更正 8 |
+| 18 | 5.2.2.3、5.2.2.4 “是为了防止在间接绑定过程中，通过创建临时对象，绕过原本的引用绑定限制”（回答 6） | 效果的概括没错，但“为了……”是设计意图，标准没写；标准只在例子的注释里说 “copying lvalue of related type”。不要当结论记 | [dcl.init.ref]/5 的例子注释；9.6 |
+
+其余说法逐条核对过，没有发现问题：5.1、5.2、5.2.1、5.2.2 的原文引用；5.2.1 里 “lvalue-to-rvalue” 的那条限制；function lvalue 绑 `T&&`；N4659 里 reference-compatible 增加 `noexcept` 函数那一种；C++17 里 prvalue 转换再 temporary materialization 的描述；`double&& r = i` 修改 `r` 不影响 `i`；回答 6 里 `double&& r1 = d` 违反 N4140 的 5.2.2.4、两条限制只在 T1 与 T2 related 时检查、`double&& r3 = static_cast<double&&>(d)` 直接绑到 `d`；回答 7 里 function lvalue 可以绑 `T&&`。回答 1 说“cppreference 对这两个时期分别列出了规则”也对：该页 5.2.1 对应的那一条分 until C++17 和 since C++17 两种写法。
